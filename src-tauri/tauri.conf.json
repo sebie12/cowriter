@@ -1,0 +1,26 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Cowriter",
+  "version": "0.1.0",
+  "identifier": "com.cowriter.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev --prefix frontend",
+    "devUrl": "http://127.0.0.1:5173",
+    "beforeBuildCommand": "npm run build --prefix frontend",
+    "frontendDist": "../frontend/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Cowriter",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 640
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  }
+}
