@@ -10,3 +10,4 @@ __pycache__/
 frontend/dist/
 src-tauri/target/
 src-tauri/gen/
+AGENTS.md
