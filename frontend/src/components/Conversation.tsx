@@ -1,10 +1,19 @@
 import { useEffect, useRef } from "react";
+import cowriterPet from "../assets/icons/cowriter_pet.svg";
 import { MarkdownContent } from "./MarkdownContent";
 import type { Message } from "../types";
 
 interface ConversationProps {
   messages: Message[];
   isSending: boolean;
+}
+
+function AssistantAvatar() {
+  return (
+    <div className="assistant-avatar" aria-hidden="true">
+      <img src={cowriterPet} alt="" />
+    </div>
+  );
 }
 
 function UserMessage({ message }: { message: Message }) {
@@ -18,7 +27,7 @@ function UserMessage({ message }: { message: Message }) {
 function AssistantMessage({ message }: { message: Message }) {
   return (
     <article className="message-row assistant-message">
-      <div className="assistant-avatar" aria-hidden="true">C</div>
+      <AssistantAvatar />
       <div className="assistant-content">
         <MarkdownContent content={message.content} />
       </div>
@@ -29,11 +38,12 @@ function AssistantMessage({ message }: { message: Message }) {
 function TypingIndicator() {
   return (
     <article className="message-row assistant-message">
-      <div className="assistant-avatar" aria-hidden="true">C</div>
-      <div className="typing-indicator" aria-label="Assistant is responding">
-        <span />
-        <span />
-        <span />
+      <AssistantAvatar />
+      <div className="typing-indicator" role="status">
+        <span className="typing-label">Thinking</span>
+        <span className="typing-dot" aria-hidden="true" />
+        <span className="typing-dot" aria-hidden="true" />
+        <span className="typing-dot" aria-hidden="true" />
       </div>
     </article>
   );
@@ -56,7 +66,7 @@ export function Conversation({ messages, isSending }: ConversationProps) {
   }
 
   return (
-    <section className="conversation" aria-label="Conversation">
+    <section className="conversation" aria-label="Conversation" aria-busy={isSending}>
       {messages.map((message) =>
         message.role === "user" ? (
           <UserMessage key={message.id} message={message} />

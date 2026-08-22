@@ -18,3 +18,9 @@ export interface Project {
 export interface ChatResponse {
   message: string;
 }
+
+export interface ChatRequest {
+  connectionId: number;
+  model: string;
+  messages: Array<Pick<Message, "role" | "content">>;
+}

@@ -1,11 +1,19 @@
 import { Composer } from "./composer/Composer";
 import { Conversation } from "./Conversation";
 import type { Project } from "../types";
+import type { ProviderModel } from "../types/providers";
 
 interface WorkspaceProps {
   project: Project | null;
   isSending: boolean;
+  isThinking: boolean;
   error: string | null;
+  models: ProviderModel[];
+  selectedModelId: string | null;
+  hasModelConnection: boolean;
+  isModelsLoading: boolean;
+  modelsError: string | null;
+  onSelectModel: (modelId: string) => void;
   onSendMessage: (message: string) => void;
   onSelectPrompt: (prompt: string) => void;
 }
@@ -34,7 +42,7 @@ function EmptyState({ onSelectPrompt }: { onSelectPrompt: (prompt: string) => vo
       <p className="eyebrow">Draft, research, revise</p>
       <h2>What are you working on?</h2>
       <p>
-        Start with a prompt, open a recent project, or create a new writing session. AI features are mocked for now.
+        Start with a prompt, open a recent project, or create a new writing session with your selected model.
       </p>
       <div className="starter-actions">
         {starterPrompts.map((prompt) => (
@@ -47,23 +55,45 @@ function EmptyState({ onSelectPrompt }: { onSelectPrompt: (prompt: string) => vo
   );
 }
 
-export function Workspace({ project, isSending, error, onSendMessage, onSelectPrompt }: WorkspaceProps) {
+export function Workspace({
+  project,
+  isSending,
+  isThinking,
+  error,
+  models,
+  selectedModelId,
+  hasModelConnection,
+  isModelsLoading,
+  modelsError,
+  onSelectModel,
+  onSendMessage,
+  onSelectPrompt,
+}: WorkspaceProps) {
   return (
     <main className="workspace">
       <WorkspaceHeader project={project} />
       {error && (
         <div className="error-banner" role="alert">
-          Could not reach Flask. Start the backend and try again. <span>{error}</span>
+          Request failed. <span>{error}</span>
         </div>
       )}
       <div className="workspace-body">
         {project ? (
-          <Conversation messages={project.messages} isSending={isSending} />
+          <Conversation messages={project.messages} isSending={isThinking} />
         ) : (
           <EmptyState onSelectPrompt={onSelectPrompt} />
         )}
       </div>
-      <Composer onSend={onSendMessage} disabled={isSending} />
+      <Composer
+        onSend={onSendMessage}
+        disabled={isSending}
+        models={models}
+        selectedModelId={selectedModelId}
+        hasModelConnection={hasModelConnection}
+        isModelsLoading={isModelsLoading}
+        modelsError={modelsError}
+        onSelectModel={onSelectModel}
+      />
     </main>
   );
 }

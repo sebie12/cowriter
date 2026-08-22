@@ -1,4 +1,4 @@
-import type { ChatResponse } from "../types";
+import type { ChatRequest, ChatResponse } from "../types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:5000";
 
@@ -12,15 +12,35 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    throw new Error(`Backend request failed with status ${response.status}`);
+    const errorBody = await response.json().catch(() => null) as { error?: unknown } | null;
+    throw new Error(
+      typeof errorBody?.error === "string"
+        ? errorBody.error
+        : `Backend request failed with status ${response.status}`,
+    );
   }
 
   return response.json() as Promise<T>;
 }
 
-export async function sendChatMessage(message: string): Promise<ChatResponse> {
-  return request<ChatResponse>("/api/chat", {
+export async function sendChatMessage(input: ChatRequest): Promise<ChatResponse> {
+  const response = await request<unknown>("/api/chat", {
     method: "POST",
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({
+      connection_id: input.connectionId,
+      model: input.model,
+      messages: input.messages,
+    }),
   });
+
+  if (
+    typeof response !== "object"
+    || response === null
+    || !("message" in response)
+    || typeof response.message !== "string"
+  ) {
+    throw new Error("Backend returned an invalid chat response.");
+  }
+
+  return { message: response.message };
 }

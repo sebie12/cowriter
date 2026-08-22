@@ -52,6 +52,23 @@ backend/.venv/bin/python backend/app.py
 
 The Flask API runs at `http://127.0.0.1:5000`.
 
+For Google OAuth connections, configure a Google OAuth web client with this redirect URI:
+
+```text
+http://127.0.0.1:5000/api/providers/google_gemini/oauth/callback
+```
+
+Then set these backend-only environment variables before starting Flask:
+
+```bash
+export GOOGLE_OAUTH_CLIENT_ID="your-client-id"
+export GOOGLE_OAUTH_CLIENT_SECRET="your-client-secret"
+export GOOGLE_CLOUD_PROJECT="your-google-cloud-project"
+export GOOGLE_CLOUD_LOCATION="us-central1"
+```
+
+`GOOGLE_CLOUD_LOCATION` defaults to `us-central1`. If the provider ID or backend address differs, set `GOOGLE_OAUTH_REDIRECT_URI` to the registered callback URI. Never expose these values through `VITE_*` frontend variables.
+
 Available endpoints:
 
 - `GET /api/health`

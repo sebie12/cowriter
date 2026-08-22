@@ -1,0 +1,13 @@
+Metadata-Version: 2.4
+Name: cowriter-backend
+Version: 0.1.0
+Summary: Flask backend for Cowriter.
+Requires-Python: >=3.10
+Requires-Dist: Flask==3.0.3
+Requires-Dist: flask-admin>=2.2.0
+Requires-Dist: flask-sqlalchemy>=3.1.1
+Requires-Dist: google-auth>=2.56.3
+Requires-Dist: google-auth-oauthlib>=1.4.0
+Requires-Dist: google-genai>=2.19.0
+Requires-Dist: keyring>=25.7.0
+Requires-Dist: ollama>=0.6.1

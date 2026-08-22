@@ -1,11 +1,14 @@
+import cowriterPet from "../assets/icons/cowriter_pet.svg";
 import type { Project } from "../types";
 
 interface SidebarProps {
   collapsed: boolean;
   projects: Project[];
   selectedProjectId: string | null;
+  settingsActive: boolean;
   onNewProject: () => void;
   onSelectProject: (projectId: string) => void;
+  onOpenSettings: () => void;
   onToggleCollapsed: () => void;
 }
 
@@ -45,10 +48,22 @@ function ProjectList({ collapsed, projects, selectedProjectId, onSelectProject }
   );
 }
 
-function SidebarFooter({ collapsed }: { collapsed: boolean }) {
+interface SidebarFooterProps {
+  collapsed: boolean;
+  settingsActive: boolean;
+  onOpenSettings: () => void;
+}
+
+function SidebarFooter({ collapsed, settingsActive, onOpenSettings }: SidebarFooterProps) {
   return (
     <footer className="sidebar-footer">
-      <button className="footer-button" type="button" title="Settings">
+      <button
+        className={`footer-button ${settingsActive ? "active" : ""}`}
+        type="button"
+        title="Settings"
+        aria-current={settingsActive ? "page" : undefined}
+        onClick={onOpenSettings}
+      >
         <span aria-hidden="true">S</span>
         {!collapsed && <span>Settings</span>}
       </button>
@@ -64,15 +79,19 @@ export function Sidebar({
   collapsed,
   projects,
   selectedProjectId,
+  settingsActive,
   onNewProject,
   onSelectProject,
+  onOpenSettings,
   onToggleCollapsed,
 }: SidebarProps) {
   return (
     <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
       <div className="sidebar-header">
         <div className="brand" title="Cowriter">
-          <span className="brand-mark" aria-hidden="true">C</span>
+          <span className="brand-mark" aria-hidden="true">
+            <img src={cowriterPet} alt="" />
+          </span>
           {!collapsed && <span className="brand-name">Cowriter</span>}
         </div>
         <button
@@ -91,7 +110,7 @@ export function Sidebar({
         selectedProjectId={selectedProjectId}
         onSelectProject={onSelectProject}
       />
-      <SidebarFooter collapsed={collapsed} />
+      <SidebarFooter collapsed={collapsed} settingsActive={settingsActive} onOpenSettings={onOpenSettings} />
     </aside>
   );
 }

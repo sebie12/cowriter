@@ -24,6 +24,12 @@
 - `npm run dev` / `npm run tauri -- dev` are long-running desktop dev commands; reaching `Running target/debug/cowriter` means launch succeeded.
 - Flask endpoints currently verified by `GET /api/health` and `POST /api/chat` with `{ "message": "Hello" }`.
 
+## Provider Integration Boundary
+
+- Provider objects under `backend/auth/providers/` only communicate with and validate external provider APIs. They must not import database models, query or mutate the database, use database sessions, or persist credentials.
+- Flask API routes own all provider-connection persistence, including database records and credential/keyring storage.
+- Provider objects return the normalized connection information the API needs to persist; they never persist that information themselves.
+
 ## Current Limits
 
 - There are no lint, formatter, unit test, or CI configs yet; do not invent commands beyond the package scripts.
