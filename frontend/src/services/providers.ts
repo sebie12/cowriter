@@ -18,6 +18,7 @@ interface SupportedProviderResponse {
   name?: unknown;
   description?: unknown;
   auth_methods?: unknown;
+  chat_supported?: unknown;
 }
 
 interface ProviderAuthorizationResponse {
@@ -118,6 +119,7 @@ function normalizeSupportedProvider(rawProvider: unknown): SupportedProvider {
     name: provider.name,
     description: typeof provider.description === "string" ? provider.description : undefined,
     authMethods: Array.from(new Set(normalizeStringList(provider.auth_methods).map(normalizeAuthMethod))),
+    chatSupported: provider.chat_supported === true,
   };
 }
 

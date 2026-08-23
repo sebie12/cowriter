@@ -97,8 +97,10 @@ class ProviderConnectionManager:
         if __package__ and __package__.startswith("backend."):
             from .providers.Gemini import GeminiConnector
             from .providers.Ollama import OllamaConnector
+            from .providers.Openai import OpenAIConnector
         else:
             from auth.providers.Gemini import GeminiConnector
             from auth.providers.Ollama import OllamaConnector
+            from auth.providers.Openai import OpenAIConnector
 
-        return [GeminiConnector(), OllamaConnector()]
+        return [GeminiConnector(), OpenAIConnector(), OllamaConnector()]

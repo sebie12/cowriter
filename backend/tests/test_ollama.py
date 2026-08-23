@@ -4,6 +4,7 @@ import ollama
 
 from backend.auth.connections import ProviderConnectionError
 from backend.auth.providers.Ollama import OllamaProvider, normalize_ollama_server_url
+from backend.llm import ChatRequest, LLMError, ProviderConfig
 
 
 class FakeClient:
@@ -104,7 +105,7 @@ class OllamaProviderTests(unittest.TestCase):
         )
 
         self.assertEqual(
-            provider.list_models("http://127.0.0.1:11434"),
+            provider.list_models(ProviderConfig(endpoint_url="http://127.0.0.1:11434")),
             ["Gemma3:latest", "qwen3:8b"],
         )
 
@@ -116,17 +117,27 @@ class OllamaProviderTests(unittest.TestCase):
             clients.append(client)
             return client
 
-        messages = [{"role": "user", "content": "Hello"}]
-        content = OllamaProvider(client_factory).chat(
-            "http://127.0.0.1:11434",
-            "qwen3:8b",
-            messages,
+        request = ChatRequest(
+            connection_id=1,
+            provider="ollama",
+            model="qwen3:8b",
+            message="Hello",
+            system_prompt="Be concise.",
+            history=({"role": "assistant", "content": "Previous answer"},),
+        )
+        result = OllamaProvider(client_factory).chat(
+            request,
+            ProviderConfig(endpoint_url="http://127.0.0.1:11434"),
         )
 
-        self.assertEqual(content, "Test response")
+        self.assertEqual(result.message, "Test response")
         self.assertEqual(clients[0].chat_call, {
             "model": "qwen3:8b",
-            "messages": messages,
+            "messages": [
+                {"role": "system", "content": "Be concise."},
+                {"role": "assistant", "content": "Previous answer"},
+                {"role": "user", "content": "Hello"},
+            ],
             "stream": False,
         })
         self.assertEqual(clients[0].options["timeout"], 120.0)
@@ -139,13 +150,18 @@ class OllamaProviderTests(unittest.TestCase):
             lambda **options: FakeClient(chat_response=response, **options),
         )
 
-        with self.assertRaisesRegex(ProviderConnectionError, "empty response") as raised:
+        with self.assertRaisesRegex(LLMError, "empty response") as raised:
             provider.chat(
-                "http://127.0.0.1:11434",
-                "qwen3:8b",
-                [{"role": "user", "content": "Hello"}],
+                ChatRequest(1, "ollama", "qwen3:8b", "Hello"),
+                ProviderConfig(endpoint_url="http://127.0.0.1:11434"),
             )
         self.assertEqual(raised.exception.status_code, 502)
+
+    def test_normalizes_invalid_stored_endpoint_error(self):
+        provider = OllamaProvider()
+
+        with self.assertRaisesRegex(LLMError, "must run on this computer"):
+            provider.list_models(ProviderConfig(endpoint_url="http://example.com:11434"))
 
 
 if __name__ == "__main__":

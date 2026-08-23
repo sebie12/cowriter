@@ -7,8 +7,10 @@ import ollama
 
 if __package__ and __package__.startswith("backend."):
     from ..connections import ProviderConnectionError, ProviderConnectionResult, ProviderConnector
+    from ...llm import ChatRequest, ChatResult, LLMError, ProviderConfig
 else:
     from auth.connections import ProviderConnectionError, ProviderConnectionResult, ProviderConnector
+    from llm import ChatRequest, ChatResult, LLMError, ProviderConfig
 
 DEFAULT_OLLAMA_SERVER_URL = "http://127.0.0.1:11434"
 
@@ -50,6 +52,9 @@ def normalize_ollama_server_url(value: str) -> str:
 
 
 class OllamaProvider:
+    provider_ids = {"ollama"}
+    credential_fields = ()
+
     def __init__(self, client_factory=ollama.Client):
         self.client_factory = client_factory
 
@@ -101,8 +106,17 @@ class OllamaProvider:
             endpoint_url=normalized_url,
         )
 
-    def list_models(self, endpoint_url: str) -> list[str]:
-        normalized_url = normalize_ollama_server_url(endpoint_url)
+    def list_models(self, config: ProviderConfig) -> list[str]:
+        if not config.endpoint_url:
+            raise LLMError("Ollama server is not configured.", 409)
+
+        return self._list_models(config.endpoint_url)
+
+    def _list_models(self, endpoint_url: str) -> list[str]:
+        try:
+            normalized_url = normalize_ollama_server_url(endpoint_url)
+        except ProviderConnectionError as error:
+            raise LLMError(error.message, error.status_code) from error
 
         try:
             with self.client_factory(
@@ -113,11 +127,11 @@ class OllamaProvider:
             ) as client:
                 response: ollama.ListResponse = client.list()
         except ollama.ResponseError as error:
-            raise ProviderConnectionError("The configured Ollama server could not list its models.", 502) from error
+            raise LLMError("The configured Ollama server could not list its models.", 502) from error
         except ConnectionError as error:
-            raise ProviderConnectionError("Could not connect to Ollama at the configured server URL.", 502) from error
+            raise LLMError("Could not connect to Ollama at the configured server URL.", 502) from error
         except Exception as error:
-            raise ProviderConnectionError("Could not retrieve models from Ollama.", 502) from error
+            raise LLMError("Could not retrieve models from Ollama.", 502) from error
 
         return sorted(
             {
@@ -130,16 +144,22 @@ class OllamaProvider:
 
     def chat(
         self,
-        endpoint_url: str,
-        model: str,
-        messages: list[dict[str, str]],
-    ) -> str:
-        normalized_url = normalize_ollama_server_url(endpoint_url)
+        request: ChatRequest,
+        config: ProviderConfig,
+    ) -> ChatResult:
+        if not config.endpoint_url:
+            raise LLMError("Ollama server is not configured.", 409)
 
-        if not isinstance(model, str) or not model.strip():
-            raise ProviderConnectionError("model is required.")
-        if not isinstance(messages, list) or not messages:
-            raise ProviderConnectionError("messages are required.")
+        try:
+            normalized_url = normalize_ollama_server_url(config.endpoint_url)
+        except ProviderConnectionError as error:
+            raise LLMError(error.message, error.status_code) from error
+
+        messages = []
+        if request.system_prompt:
+            messages.append({"role": "system", "content": request.system_prompt})
+        messages.extend(request.history)
+        messages.append({"role": "user", "content": request.message})
 
         try:
             with self.client_factory(
@@ -149,23 +169,23 @@ class OllamaProvider:
                 trust_env=False,
             ) as client:
                 response: ollama.ChatResponse = client.chat(
-                    model=model.strip(),
+                    model=request.model,
                     messages=messages,
                     stream=False,
                 )
         except ollama.ResponseError as error:
             if error.status_code == 404:
-                raise ProviderConnectionError("The selected Ollama model is not installed.", 404) from error
-            raise ProviderConnectionError("Ollama could not complete the chat request.", 502) from error
+                raise LLMError("The selected Ollama model is not installed.", 404) from error
+            raise LLMError("Ollama could not complete the chat request.", 502) from error
         except ConnectionError as error:
-            raise ProviderConnectionError("Could not connect to Ollama at the configured server URL.", 502) from error
+            raise LLMError("Could not connect to Ollama at the configured server URL.", 502) from error
         except Exception as error:
-            raise ProviderConnectionError("Could not communicate with Ollama.", 502) from error
+            raise LLMError("Could not communicate with Ollama.", 502) from error
 
         content = response.message.content
         if not isinstance(content, str) or not content.strip():
-            raise ProviderConnectionError("Ollama returned an empty response.", 502)
-        return content
+            raise LLMError("Ollama returned an empty response.", 502)
+        return ChatResult(message=content)
 
 
 class OllamaConnector(ProviderConnector):

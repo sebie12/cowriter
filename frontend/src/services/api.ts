@@ -28,8 +28,11 @@ export async function sendChatMessage(input: ChatRequest): Promise<ChatResponse>
     method: "POST",
     body: JSON.stringify({
       connection_id: input.connectionId,
+      provider: input.provider,
       model: input.model,
-      messages: input.messages,
+      message: input.message,
+      system_prompt: input.systemPrompt,
+      history: input.history ?? [],
     }),
   });
 

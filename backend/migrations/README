@@ -1,0 +1,7 @@
+Apply migrations from the repository root with:
+
+    backend/.venv/bin/flask --app backend.app db upgrade
+
+Create a migration after changing models with:
+
+    backend/.venv/bin/flask --app backend.app db migrate -m "describe the change"

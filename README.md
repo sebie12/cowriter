@@ -42,6 +42,23 @@ If you prefer to use an already-active virtual environment:
 pip install -r backend/requirements.txt
 ```
 
+## Initialize The Database
+
+Apply pending database migrations before starting Flask:
+
+```bash
+backend/.venv/bin/flask --app backend.app db upgrade
+```
+
+After changing a database model, generate and review a new migration, then apply it:
+
+```bash
+backend/.venv/bin/flask --app backend.app db migrate -m "describe the change"
+backend/.venv/bin/flask --app backend.app db upgrade
+```
+
+The SQLite database is stored at `instance/database.db`. Override it with `COWRITER_DATABASE_URI` when needed.
+
 ## Run Flask During Development
 
 Start the backend in one terminal:
@@ -72,7 +89,7 @@ export GOOGLE_CLOUD_LOCATION="us-central1"
 Available endpoints:
 
 - `GET /api/health`
-- `POST /api/chat` with `{ "message": "Hello" }`
+- `POST /api/chat` with `{ "connection_id": 1, "provider": "ollama", "model": "qwen3:8b", "message": "Hello", "system_prompt": "Optional instructions", "history": [] }`
 
 ## Run The Tauri App
 
@@ -112,9 +129,9 @@ frontend/src/
 
 - Project data is stored only in React state for the current session.
 - New projects are local-only and are not persisted.
-- Chat responses come from `POST /api/chat` and return a deterministic placeholder message.
-- Attachment, model/tool controls, settings, and account/profile controls are visual placeholders only.
-- No OpenAI, Anthropic, LangChain, LangGraph, MCP, local model, database, embeddings, or RAG integration is included.
+- Chat responses come from the configured OpenAI or local Ollama model through `POST /api/chat`.
+- Attachment, tool controls, and account/profile controls are visual placeholders only.
+- No Anthropic, LangChain, LangGraph, MCP, embeddings, or RAG integration is included.
 
 ## Future Direction
 

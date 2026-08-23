@@ -21,6 +21,9 @@ export interface ChatResponse {
 
 export interface ChatRequest {
   connectionId: number;
+  provider: string;
   model: string;
-  messages: Array<Pick<Message, "role" | "content">>;
+  message: string;
+  systemPrompt?: string;
+  history?: Array<Pick<Message, "role" | "content">>;
 }

@@ -3,3 +3,5 @@ app
 auth
 blueprints
 database
+llm
+migrations

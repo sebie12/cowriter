@@ -5,6 +5,7 @@ import type { ConnectProviderInput, ProviderConnection, ProviderSummary, Support
 
 export interface UseProvidersState {
   providers: ProviderSummary[];
+  connections: ProviderConnection[];
   error: string | null;
   isLoading: boolean;
   isRefreshing: boolean;
@@ -47,6 +48,7 @@ function mergeProviders(
       name: provider.name,
       description: provider.description,
       authMethods: provider.authMethods,
+      chatSupported: provider.chatSupported,
       status: "disconnected",
     });
   });
@@ -67,6 +69,7 @@ function mergeProviders(
       id: connection.providerId,
       name: providerNameFromId(connection.providerId),
       authMethods: connection.authType ? [connection.authType] : [],
+      chatSupported: false,
       status: connection.status,
       connection,
     });
@@ -77,13 +80,19 @@ function mergeProviders(
   );
 }
 
-async function fetchProviderState(signal?: AbortSignal): Promise<ProviderSummary[]> {
+async function fetchProviderState(signal?: AbortSignal): Promise<{
+  providers: ProviderSummary[];
+  connections: ProviderConnection[];
+}> {
   const [supportedProviders, connections] = await Promise.all([
     fetchSupportedProviders(signal),
     fetchProviderConnections(signal),
   ]);
 
-  return mergeProviders(supportedProviders, connections);
+  return {
+    providers: mergeProviders(supportedProviders, connections),
+    connections,
+  };
 }
 
 function wait(milliseconds: number, signal: AbortSignal): Promise<void> {
@@ -111,6 +120,7 @@ function isAbortError(error: unknown): boolean {
 
 export function useProviders(): UseProvidersState {
   const [providers, setProviders] = useState<ProviderSummary[]>([]);
+  const [connections, setConnections] = useState<ProviderConnection[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -133,8 +143,9 @@ export function useProviders(): UseProvidersState {
     setIsLoading(!refreshing);
 
     try {
-      const nextProviders = await fetchProviderState(controller.signal);
-      setProviders(nextProviders);
+      const nextState = await fetchProviderState(controller.signal);
+      setProviders(nextState.providers);
+      setConnections(nextState.connections);
       if (refreshing) {
         setRefreshVersion((version) => version + 1);
       }
@@ -198,6 +209,7 @@ export function useProviders(): UseProvidersState {
             const connections = await fetchProviderConnections(controller.signal);
             setAuthorizationUrls({});
             setProviders((currentProviders) => mergeProviders(currentProviders, connections));
+            setConnections(connections);
             return true;
           }
           if (oauthStatus.status === "error") {
@@ -213,6 +225,10 @@ export function useProviders(): UseProvidersState {
           ? { ...provider, status: result.status, connection: result }
           : provider,
       ));
+      setConnections((currentConnections) => [
+        ...currentConnections.filter((connection) => connection.id !== result.id),
+        result,
+      ]);
       return true;
     } catch (connectError) {
       if (!isAbortError(connectError)) {
@@ -254,8 +270,9 @@ export function useProviders(): UseProvidersState {
       setIsLoading(true);
 
       try {
-        const nextProviders = await fetchProviderState(controller.signal);
-        setProviders(nextProviders);
+        const nextState = await fetchProviderState(controller.signal);
+        setProviders(nextState.providers);
+        setConnections(nextState.connections);
       } catch (loadError) {
         if (!isAbortError(loadError)) {
           setError(messageFromError(loadError));
@@ -277,6 +294,7 @@ export function useProviders(): UseProvidersState {
 
   return {
     providers,
+    connections,
     error,
     actionError,
     refreshVersion,

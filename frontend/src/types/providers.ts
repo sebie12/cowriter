@@ -17,6 +17,7 @@ export interface SupportedProvider {
   name: string;
   description?: string;
   authMethods: string[];
+  chatSupported: boolean;
 }
 
 export interface ProviderSummary extends SupportedProvider {

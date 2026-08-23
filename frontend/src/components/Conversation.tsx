@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import cowriterPet from "../assets/icons/cowriter_pet.svg";
 import { MarkdownContent } from "./MarkdownContent";
 import type { Message } from "../types";
@@ -7,6 +7,11 @@ interface ConversationProps {
   messages: Message[];
   isSending: boolean;
 }
+
+const DEFAULT_ZOOM = 100;
+const MIN_ZOOM = 75;
+const MAX_ZOOM = 200;
+const ZOOM_STEP = 10;
 
 function AssistantAvatar() {
   return (
@@ -50,11 +55,29 @@ function TypingIndicator() {
 }
 
 export function Conversation({ messages, isSending }: ConversationProps) {
-  const endRef = useRef<HTMLDivElement | null>(null);
+  const [zoom, setZoom] = useState(DEFAULT_ZOOM);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages, isSending]);
+    const handleZoomShortcut = (event: KeyboardEvent) => {
+      if ((!event.ctrlKey && !event.metaKey) || event.altKey) {
+        return;
+      }
+
+      if (event.key === "+" || event.key === "=") {
+        event.preventDefault();
+        setZoom((currentZoom) => Math.min(currentZoom + ZOOM_STEP, MAX_ZOOM));
+      } else if (event.key === "-") {
+        event.preventDefault();
+        setZoom((currentZoom) => Math.max(currentZoom - ZOOM_STEP, MIN_ZOOM));
+      } else if (event.key === "0") {
+        event.preventDefault();
+        setZoom(DEFAULT_ZOOM);
+      }
+    };
+
+    window.addEventListener("keydown", handleZoomShortcut);
+    return () => window.removeEventListener("keydown", handleZoomShortcut);
+  }, []);
 
   if (messages.length === 0 && !isSending) {
     return (
@@ -66,7 +89,12 @@ export function Conversation({ messages, isSending }: ConversationProps) {
   }
 
   return (
-    <section className="conversation" aria-label="Conversation" aria-busy={isSending}>
+    <section
+      className="conversation"
+      aria-label="Conversation"
+      aria-busy={isSending}
+      style={{ fontSize: `${zoom}%` }}
+    >
       {messages.map((message) =>
         message.role === "user" ? (
           <UserMessage key={message.id} message={message} />
@@ -75,7 +103,6 @@ export function Conversation({ messages, isSending }: ConversationProps) {
         ),
       )}
       {isSending && <TypingIndicator />}
-      <div ref={endRef} />
     </section>
   );
 }

@@ -7,15 +7,25 @@ import { SettingsSidebar, type SettingsSection } from "./SettingsSidebar";
 
 interface SettingsModalProps {
   providerState: UseProvidersState;
+  activeConnectionId: number | null;
+  selectionDisabled: boolean;
+  onSelectActiveConnection: (connectionId: number) => void;
   onClose: () => void;
 }
 
-export function SettingsModal({ providerState, onClose }: SettingsModalProps) {
+export function SettingsModal({
+  providerState,
+  activeConnectionId,
+  selectionDisabled,
+  onSelectActiveConnection,
+  onClose,
+}: SettingsModalProps) {
   const [selectedSection, setSelectedSection] = useState<SettingsSection>("model-providers");
-  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
+  const [editingProviderId, setEditingProviderId] = useState<string | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const {
     providers,
+    connections,
     error,
     actionError,
     isLoading,
@@ -28,12 +38,12 @@ export function SettingsModal({ providerState, onClose }: SettingsModalProps) {
     clearActionError,
     reopenAuthorization,
   } = providerState;
-  const selectedProvider = providers.find((provider) => provider.id === selectedProviderId) ?? null;
+  const selectedProvider = providers.find((provider) => provider.id === editingProviderId) ?? null;
 
   const closeProviderPanel = () => {
     cancelConnection();
     clearActionError();
-    setSelectedProviderId(null);
+    setEditingProviderId(null);
   };
 
   const closeSettings = () => {
@@ -51,7 +61,7 @@ export function SettingsModal({ providerState, onClose }: SettingsModalProps) {
         return;
       }
 
-      if (selectedProviderId) {
+      if (editingProviderId) {
         closeProviderPanel();
       } else {
         closeSettings();
@@ -60,11 +70,11 @@ export function SettingsModal({ providerState, onClose }: SettingsModalProps) {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedProviderId]);
+  }, [editingProviderId]);
 
   const selectProvider = (provider: ProviderSummary) => {
     clearActionError();
-    setSelectedProviderId(provider.id);
+    setEditingProviderId(provider.id);
   };
 
   return (
@@ -93,11 +103,15 @@ export function SettingsModal({ providerState, onClose }: SettingsModalProps) {
               {selectedSection === "model-providers" && (
                 <ProvidersSettings
                   providers={providers}
+                  connections={connections}
+                  activeConnectionId={activeConnectionId}
+                  selectionDisabled={selectionDisabled}
                   error={error}
                   isLoading={isLoading}
                   isRefreshing={isRefreshing}
-                  selectedProviderId={selectedProviderId}
+                  selectedProviderId={editingProviderId}
                   onRefresh={() => void refreshProviders()}
+                  onSelectActiveConnection={onSelectActiveConnection}
                   onSelectProvider={selectProvider}
                 />
               )}

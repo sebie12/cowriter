@@ -10,6 +10,41 @@ import type { Message, Project } from "./types";
 import type { ProviderModel } from "./types/providers";
 import { createId } from "./utils/ids";
 
+const CHAT_PREFERENCES_KEY = "cowriter.chat-preferences.v1";
+
+interface ChatPreferences {
+  activeConnectionId: number | null;
+  modelByConnectionId: Record<string, string>;
+}
+
+function loadChatPreferences(): ChatPreferences {
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(CHAT_PREFERENCES_KEY) ?? "null") as unknown;
+    if (typeof stored !== "object" || stored === null) {
+      throw new Error("Invalid chat preferences.");
+    }
+
+    const candidate = stored as Partial<ChatPreferences>;
+    const activeConnectionId = typeof candidate.activeConnectionId === "number"
+      && Number.isInteger(candidate.activeConnectionId)
+      && candidate.activeConnectionId > 0
+      ? candidate.activeConnectionId
+      : null;
+    const modelByConnectionId = typeof candidate.modelByConnectionId === "object"
+      && candidate.modelByConnectionId !== null
+      ? Object.fromEntries(
+        Object.entries(candidate.modelByConnectionId).filter(
+          ([connectionId, modelId]) => /^\d+$/.test(connectionId) && typeof modelId === "string" && modelId.length > 0,
+        ),
+      )
+      : {};
+
+    return { activeConnectionId, modelByConnectionId };
+  } catch {
+    return { activeConnectionId: null, modelByConnectionId: {} };
+  }
+}
+
 function createMessage(role: Message["role"], content: string): Message {
   return {
     id: createId("message"),
@@ -41,6 +76,11 @@ function titleFromMessage(message: string): string {
 }
 
 export default function App() {
+  const initialChatPreferencesRef = useRef<ChatPreferences | null>(null);
+  if (initialChatPreferencesRef.current === null) {
+    initialChatPreferencesRef.current = loadChatPreferences();
+  }
+  const initialChatPreferences = initialChatPreferencesRef.current;
   const [projects, setProjects] = useState<Project[]>(mockProjects);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -49,7 +89,13 @@ export default function App() {
   const [sendingProjectId, setSendingProjectId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [models, setModels] = useState<ProviderModel[]>([]);
-  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+  const [activeConnectionId, setActiveConnectionId] = useState<number | null>(
+    initialChatPreferences.activeConnectionId,
+  );
+  const [modelByConnectionId, setModelByConnectionId] = useState<Record<string, string>>(
+    initialChatPreferences.modelByConnectionId,
+  );
+  const [modelsConnectionId, setModelsConnectionId] = useState<number | null>(null);
   const [isModelsLoading, setIsModelsLoading] = useState(false);
   const [modelsError, setModelsError] = useState<string | null>(null);
   const isSendingRef = useRef(false);
@@ -59,42 +105,94 @@ export default function App() {
     () => projects.find((project) => project.id === selectedProjectId) ?? null,
     [projects, selectedProjectId],
   );
-  const ollamaConnection = providerState.providers.find(
-    (provider) => provider.id === "ollama" && provider.status === "connected",
-  )?.connection ?? null;
+  const chatProviderIds = new Set(
+    providerState.providers
+      .filter((provider) => provider.chatSupported)
+      .map((provider) => provider.id),
+  );
+  const connectedProviders = providerState.connections
+    .filter((connection) => connection.status === "connected" && chatProviderIds.has(connection.providerId))
+    .sort((firstConnection, secondConnection) => firstConnection.id - secondConnection.id);
+  const activeConnection = providerState.connections.find(
+    (connection) => connection.id === activeConnectionId
+      && connectedProviders.some((candidate) => candidate.id === connection.id),
+  ) ?? null;
+  const preferredModelId = activeConnection
+    ? modelByConnectionId[String(activeConnection.id)] ?? null
+    : null;
+  const selectedModelId = activeConnection
+    && modelsConnectionId === activeConnection.id
+    && models.some((model) => model.id === preferredModelId)
+    ? preferredModelId
+    : null;
 
   useEffect(() => {
-    if (!ollamaConnection) {
+    if (providerState.isLoading || providerState.isRefreshing || providerState.error) {
+      return;
+    }
+
+    setActiveConnectionId((currentConnectionId) => (
+      connectedProviders.some((connection) => connection.id === currentConnectionId)
+        ? currentConnectionId
+        : connectedProviders[0]?.id ?? null
+    ));
+  }, [
+    providerState.isLoading,
+    providerState.isRefreshing,
+    providerState.error,
+    providerState.providers,
+    providerState.connections,
+  ]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(CHAT_PREFERENCES_KEY, JSON.stringify({
+        activeConnectionId,
+        modelByConnectionId,
+      } satisfies ChatPreferences));
+    } catch {
+      // Preferences remain available for the current session when storage is unavailable.
+    }
+  }, [activeConnectionId, modelByConnectionId]);
+
+  useEffect(() => {
+    if (!activeConnection) {
       setModels([]);
-      setSelectedModelId(null);
+      setModelsConnectionId(null);
       setModelsError(null);
       setIsModelsLoading(false);
       return;
     }
 
     const controller = new AbortController();
-    const previousModelId = selectedModelId;
+    const connectionId = activeConnection.id;
+    const previousModelId = modelByConnectionId[String(connectionId)] ?? null;
     setModels([]);
-    setSelectedModelId(null);
+    setModelsConnectionId(null);
     setIsModelsLoading(true);
     setModelsError(null);
 
-    void fetchProviderModels(ollamaConnection.id, controller.signal)
+    void fetchProviderModels(connectionId, controller.signal)
       .then((nextModels) => {
+        const nextModelId = nextModels.some((model) => model.id === previousModelId)
+          ? previousModelId
+          : nextModels[0]?.id ?? null;
         setModels(nextModels);
-        setSelectedModelId(
-          nextModels.some((model) => model.id === previousModelId)
-            ? previousModelId
-            : nextModels[0]?.id ?? null,
-        );
+        setModelsConnectionId(connectionId);
+        setModelByConnectionId((currentModels) => {
+          if (nextModelId) {
+            return { ...currentModels, [String(connectionId)]: nextModelId };
+          }
+          return currentModels;
+        });
       })
       .catch((loadError) => {
         if (loadError instanceof Error && loadError.name === "AbortError") {
           return;
         }
         setModels([]);
-        setSelectedModelId(null);
-        setModelsError(loadError instanceof Error ? loadError.message : "Could not load Ollama models.");
+        setModelsConnectionId(null);
+        setModelsError(loadError instanceof Error ? loadError.message : "Could not load provider models.");
       })
       .finally(() => {
         if (!controller.signal.aborted) {
@@ -103,7 +201,7 @@ export default function App() {
       });
 
     return () => controller.abort();
-  }, [ollamaConnection?.id, ollamaConnection?.endpointUrl, ollamaConnection?.updatedAt, providerState.refreshVersion]);
+  }, [activeConnection?.id, activeConnection?.endpointUrl, activeConnection?.updatedAt, providerState.refreshVersion]);
 
   const updateProjectMessages = (projectId: string, messages: Message[], title?: string) => {
     const timestamp = new Date().toISOString();
@@ -137,8 +235,8 @@ export default function App() {
     if (!trimmedContent || isSendingRef.current) {
       return;
     }
-    if (!ollamaConnection || !selectedModelId || isModelsLoading) {
-      setError("Connect Ollama and select an installed model before sending a message.");
+    if (!activeConnection || !selectedModelId || isModelsLoading) {
+      setError("Connect a provider and select a model before sending a message.");
       return;
     }
 
@@ -164,9 +262,11 @@ export default function App() {
 
     try {
       const response = await sendChatMessage({
-        connectionId: ollamaConnection.id,
+        connectionId: activeConnection.id,
+        provider: activeConnection.providerId,
         model: selectedModelId,
-        messages: [...activeProject.messages, userMessage].map(({ role, content: messageContent }) => ({
+        message: trimmedContent,
+        history: activeProject.messages.map(({ role, content: messageContent }) => ({
           role,
           content: messageContent,
         })),
@@ -209,17 +309,35 @@ export default function App() {
         isSending={isSending}
         isThinking={isSending && sendingProjectId === selectedProject?.id}
         error={error}
+        providerName={providerState.providers.find((provider) => provider.id === activeConnection?.providerId)?.name ?? null}
         models={models}
         selectedModelId={selectedModelId}
-        hasModelConnection={Boolean(ollamaConnection)}
         isModelsLoading={isModelsLoading}
         modelsError={modelsError}
-        onSelectModel={setSelectedModelId}
+        onSelectModel={(modelId) => {
+          if (!activeConnection || !models.some((model) => model.id === modelId)) {
+            return;
+          }
+          setModelByConnectionId((currentModels) => ({
+            ...currentModels,
+            [String(activeConnection.id)]: modelId,
+          }));
+        }}
         onSendMessage={handleSendMessage}
         onSelectPrompt={(prompt) => void handleSendMessage(prompt)}
       />
       {isSettingsOpen && (
-        <SettingsModal providerState={providerState} onClose={() => setIsSettingsOpen(false)} />
+        <SettingsModal
+          providerState={providerState}
+          activeConnectionId={activeConnectionId}
+          selectionDisabled={isSending}
+          onSelectActiveConnection={(connectionId) => {
+            setModels([]);
+            setModelsConnectionId(null);
+            setActiveConnectionId(connectionId);
+          }}
+          onClose={() => setIsSettingsOpen(false)}
+        />
       )}
     </div>
   );

@@ -10,14 +10,28 @@ requires-python = ">=3.10"
 dependencies = [
     "Flask==3.0.3",
     "flask-admin>=2.2.0",
+    "Flask-Migrate>=4.1.0",
     "flask-sqlalchemy>=3.1.1",
     "google-auth>=2.56.3",
     "google-auth-oauthlib>=1.4.0",
     "google-genai>=2.19.0",
     "keyring>=25.7.0",
     "ollama>=0.6.1",
+    "openai>=1.109.0",
 ]
 
 [tool.setuptools]
 py-modules = ["app", "admin_views"]
-packages = ["auth", "auth.providers", "blueprints", "database"]
+packages = [
+    "auth",
+    "auth.providers",
+    "blueprints",
+    "database",
+    "llm",
+    "migrations",
+    "migrations.versions",
+    "prompts",
+]
+
+[tool.setuptools.package-data]
+migrations = ["README", "alembic.ini", "script.py.mako"]

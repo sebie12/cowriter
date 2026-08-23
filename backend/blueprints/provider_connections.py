@@ -1,12 +1,10 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 
 if __package__ and __package__.startswith("backend."):
-    from ..auth.connections import ProviderConnectionError
-    from ..auth.providers.Ollama import OllamaProvider
+    from ..llm import LLMError
     from ..database import ProviderConnection, db
 else:
-    from auth.connections import ProviderConnectionError
-    from auth.providers.Ollama import OllamaProvider
+    from llm import LLMError
     from database import ProviderConnection, db
 
 provider_connections_bp = Blueprint(
@@ -48,19 +46,14 @@ def get_provider_connection_models(connection_id):
     connection = db.session.get(ProviderConnection, connection_id)
     if connection is None:
         return jsonify({"error": "Provider connection not found."}), 404
-    if connection.provider != "ollama":
-        return jsonify({"error": "Model discovery is not implemented for this provider."}), 501
-    if connection.status != "connected" or not connection.endpoint_url:
-        return jsonify({"error": "Provider is not connected."}), 409
-
     try:
-        models = OllamaProvider().list_models(connection.endpoint_url)
-    except ProviderConnectionError as error:
+        provider_id, models = current_app.extensions["chat_service"].list_models(connection_id)
+    except LLMError as error:
         return jsonify({"error": error.message}), error.status_code
 
     return jsonify({
         "connection_id": connection.id,
-        "provider": connection.provider,
+        "provider": provider_id,
         "models": [
             {"id": model, "name": model}
             for model in models

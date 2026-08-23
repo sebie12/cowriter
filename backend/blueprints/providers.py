@@ -2,7 +2,7 @@ import os
 from contextlib import nullcontext
 from threading import Lock
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 
 if __package__ and __package__.startswith("backend."):
     from ..auth.connections import ProviderAuthorizationResult, ProviderConnectionError, ProviderConnectionManager, normalize_auth_method, normalize_identifier
@@ -86,6 +86,9 @@ def serialize_provider(provider):
         "id": normalize_identifier(provider.name),
         "name": provider.name,
         "description": provider.description,
+        "chat_supported": current_app.extensions["chat_service"].supports_provider(
+            normalize_identifier(provider.name),
+        ),
         "auth_methods": [
             method.method_name for method in provider.auth_methods
         ],

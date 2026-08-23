@@ -1,44 +1,59 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 
 if __package__ and __package__.startswith("backend."):
-    from ..auth.connections import ProviderConnectionError
-    from ..auth.providers.Ollama import OllamaProvider
-    from ..database import ProviderConnection, db
+    from ..llm import ChatRequest, LLMError
+    from ..prompts import SystemPrompts
 else:
-    from auth.connections import ProviderConnectionError
-    from auth.providers.Ollama import OllamaProvider
-    from database import ProviderConnection, db
+    from llm import ChatRequest, LLMError
+    from prompts import SystemPrompts
 
 chat_bp = Blueprint("chat", __name__, url_prefix="/api")
-ALLOWED_MESSAGE_ROLES = {"system", "user", "assistant"}
+ALLOWED_HISTORY_ROLES = {"user", "assistant"}
 
 
 def parse_chat_payload(payload):
     if not isinstance(payload, dict):
-        raise ProviderConnectionError("Request body must be a JSON object.")
+        raise LLMError("Request body must be a JSON object.")
 
     connection_id = payload.get("connection_id")
+    provider = payload.get("provider")
     model = payload.get("model")
-    messages = payload.get("messages")
+    message = payload.get("message")
+    system_prompt = payload.get("system_prompt", SystemPrompts.chat())
+    history = payload.get("history", [])
 
     if isinstance(connection_id, bool) or not isinstance(connection_id, int) or connection_id < 1:
-        raise ProviderConnectionError("connection_id is required.")
+        raise LLMError("connection_id is required.")
+    if not isinstance(provider, str) or not provider.strip():
+        raise LLMError("provider is required.")
     if not isinstance(model, str) or not model.strip():
-        raise ProviderConnectionError("model is required.")
-    if not isinstance(messages, list) or not messages:
-        raise ProviderConnectionError("messages are required.")
+        raise LLMError("model is required.")
+    if not isinstance(message, str) or not message.strip():
+        raise LLMError("message is required.")
+    if system_prompt is not None and not isinstance(system_prompt, str):
+        raise LLMError("system_prompt must be a string.")
+    if not isinstance(history, list):
+        raise LLMError("history must be an array.")
 
-    normalized_messages = []
-    for message in messages:
-        if not isinstance(message, dict):
-            raise ProviderConnectionError("messages contains an invalid message.")
-        role = message.get("role")
-        content = message.get("content")
-        if role not in ALLOWED_MESSAGE_ROLES or not isinstance(content, str) or not content.strip():
-            raise ProviderConnectionError("messages contains an invalid message.")
-        normalized_messages.append({"role": role, "content": content.strip()})
+    normalized_history = []
+    for history_message in history:
+        if not isinstance(history_message, dict):
+            raise LLMError("history contains an invalid message.")
+        role = history_message.get("role")
+        content = history_message.get("content")
+        if role not in ALLOWED_HISTORY_ROLES or not isinstance(content, str) or not content.strip():
+            raise LLMError("history contains an invalid message.")
+        normalized_history.append({"role": role, "content": content.strip()})
 
-    return connection_id, model.strip(), normalized_messages
+    normalized_system_prompt = system_prompt.strip() if system_prompt else None
+    return ChatRequest(
+        connection_id=connection_id,
+        provider=provider.strip(),
+        model=model.strip(),
+        message=message.strip(),
+        system_prompt=normalized_system_prompt,
+        history=tuple(normalized_history),
+    )
 
 
 @chat_bp.route("/chat", methods=["POST", "OPTIONS"])
@@ -47,25 +62,9 @@ def chat():
         return ("", 204)
 
     try:
-        connection_id, model, messages = parse_chat_payload(request.get_json(silent=True))
-    except ProviderConnectionError as error:
+        chat_request = parse_chat_payload(request.get_json(silent=True))
+        result = current_app.extensions["chat_service"].chat(chat_request)
+    except LLMError as error:
         return jsonify({"error": error.message}), error.status_code
 
-    connection = db.session.get(ProviderConnection, connection_id)
-    if connection is None:
-        return jsonify({"error": "Provider connection not found."}), 404
-    if connection.provider != "ollama":
-        return jsonify({"error": "Chat is not implemented for this provider."}), 501
-    if connection.status != "connected" or not connection.endpoint_url:
-        return jsonify({"error": "Provider is not connected."}), 409
-
-    try:
-        content = OllamaProvider().chat(
-            endpoint_url=connection.endpoint_url,
-            model=model,
-            messages=messages,
-        )
-    except ProviderConnectionError as error:
-        return jsonify({"error": error.message}), error.status_code
-
-    return jsonify({"message": content})
+    return jsonify({"message": result.message})
