@@ -3,6 +3,7 @@ import type { UseProvidersState } from "../../hooks/useProviders";
 import type { ProviderSummary } from "../../types/providers";
 import { ProviderAuthPanel } from "../providers/ProviderAuthPanel";
 import { ProvidersSettings } from "../providers/ProvidersSettings";
+import { CloseIcon } from "../ui/Icons";
 import { SettingsSidebar, type SettingsSection } from "./SettingsSidebar";
 
 interface SettingsModalProps {
@@ -78,28 +79,18 @@ export function SettingsModal({
   };
 
   return (
-    <div
-      className="settings-overlay"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
-          closeSettings();
-        }
-      }}
-    >
+    <div className="settings-overlay">
+      <button className="settings-mask" type="button" aria-label="Close settings" onClick={closeSettings} />
       <div className={`settings-stage ${selectedProvider ? "provider-open" : ""}`}>
         <section className="settings-panel" role="dialog" aria-modal={selectedProvider ? undefined : true} aria-labelledby="settings-title">
-          <header className="settings-header">
-            <div>
-              <p className="eyebrow">Workspace</p>
-              <h1 id="settings-title">Settings</h1>
-            </div>
-            <button ref={closeButtonRef} className="settings-close-button" type="button" onClick={closeSettings} aria-label="Close settings">
-              <span aria-hidden="true">x</span>
-            </button>
-          </header>
           <div className="settings-layout">
             <SettingsSidebar selectedSection={selectedSection} onSelectSection={setSelectedSection} />
             <div className="settings-content">
+              <header className="settings-header">
+                <button ref={closeButtonRef} className="settings-close-button" type="button" onClick={closeSettings} aria-label="Close settings">
+                  <CloseIcon />
+                </button>
+              </header>
               {selectedSection === "model-providers" && (
                 <ProvidersSettings
                   providers={providers}

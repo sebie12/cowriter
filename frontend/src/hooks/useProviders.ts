@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { openExternalUrl } from "../services/externalLinks";
-import { connectProvider as requestProviderConnection, fetchOAuthConnectionStatus, fetchProviderConnections, fetchSupportedProviders } from "../services/providers";
+import type { CowriterApi } from "../services/backend/types";
 import type { ConnectProviderInput, ProviderConnection, ProviderSummary, SupportedProvider } from "../types/providers";
 
 export interface UseProvidersState {
@@ -80,13 +80,13 @@ function mergeProviders(
   );
 }
 
-async function fetchProviderState(signal?: AbortSignal): Promise<{
+async function fetchProviderState(api: CowriterApi, signal?: AbortSignal): Promise<{
   providers: ProviderSummary[];
   connections: ProviderConnection[];
 }> {
   const [supportedProviders, connections] = await Promise.all([
-    fetchSupportedProviders(signal),
-    fetchProviderConnections(signal),
+    api.listProviders(signal),
+    api.listProviderConnections(signal),
   ]);
 
   return {
@@ -118,7 +118,7 @@ function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === "AbortError";
 }
 
-export function useProviders(): UseProvidersState {
+export function useProviders(api: CowriterApi): UseProvidersState {
   const [providers, setProviders] = useState<ProviderSummary[]>([]);
   const [connections, setConnections] = useState<ProviderConnection[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -143,7 +143,7 @@ export function useProviders(): UseProvidersState {
     setIsLoading(!refreshing);
 
     try {
-      const nextState = await fetchProviderState(controller.signal);
+      const nextState = await fetchProviderState(api, controller.signal);
       setProviders(nextState.providers);
       setConnections(nextState.connections);
       if (refreshing) {
@@ -186,7 +186,7 @@ export function useProviders(): UseProvidersState {
     ));
 
     try {
-      const result = await requestProviderConnection(input, controller.signal);
+      const result = await api.connectProvider(input, controller.signal);
       if ("authorizationUrl" in result) {
         setAuthorizationUrls({ [input.providerId]: result.authorizationUrl });
         setProviders((currentProviders) =>
@@ -200,13 +200,13 @@ export function useProviders(): UseProvidersState {
 
         for (let attempt = 0; attempt < 150; attempt += 1) {
           await wait(2000, controller.signal);
-          const oauthStatus = await fetchOAuthConnectionStatus(
+          const oauthStatus = await api.getOAuthConnectionStatus(
             input.providerId,
             result.attemptId,
             controller.signal,
           );
           if (oauthStatus.status === "connected") {
-            const connections = await fetchProviderConnections(controller.signal);
+            const connections = await api.listProviderConnections(controller.signal);
             setAuthorizationUrls({});
             setProviders((currentProviders) => mergeProviders(currentProviders, connections));
             setConnections(connections);
@@ -270,7 +270,7 @@ export function useProviders(): UseProvidersState {
       setIsLoading(true);
 
       try {
-        const nextState = await fetchProviderState(controller.signal);
+        const nextState = await fetchProviderState(api, controller.signal);
         setProviders(nextState.providers);
         setConnections(nextState.connections);
       } catch (loadError) {
@@ -290,7 +290,7 @@ export function useProviders(): UseProvidersState {
       controller.abort();
       connectionControllerRef.current?.abort();
     };
-  }, []);
+  }, [api]);
 
   return {
     providers,

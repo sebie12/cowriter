@@ -4,22 +4,22 @@ const now = new Date().toISOString();
 
 export const mockProjects: Project[] = [
   {
-    id: "project-ai-agents",
-    title: "Research paper - AI agents",
+    id: "project-modernism",
+    title: "Modernism research paper",
     createdAt: now,
     updatedAt: now,
     messages: [
       {
-        id: "message-ai-1",
+        id: "message-modernism-1",
         role: "user",
-        content: "Help me shape a research paper about AI agents in knowledge work.",
+        content: "Help me shape a research paper about fragmented narration in modernist fiction.",
         createdAt: now,
       },
       {
-        id: "message-ai-2",
+        id: "message-modernism-2",
         role: "assistant",
         content:
-          "# Research direction\n\nA strong paper could focus on how agentic systems change planning, delegation, and review in knowledge work.\n\n## Possible thesis\n\nAI agents are most useful when they operate as constrained collaborators rather than autonomous replacements.\n\n- Define the agent's scope clearly.\n- Compare single-agent and multi-agent workflows.\n- Evaluate human review as part of the system, not as an afterthought.\n\n> The key research question is not whether agents can complete tasks, but how reliably they can participate in accountable workflows.\n\nYou might use `workflow reliability` as a recurring analytical frame.",
+          "# Research direction\n\nA strong paper could compare how two modernist novels use fragmented narration to represent memory and social change.\n\n## Possible thesis\n\nFragmented form does more than imitate private thought: it asks readers to reconstruct the social pressures surrounding each character.\n\n- Define fragmentation with close textual examples.\n- Compare shifts in time and point of view.\n- Connect formal choices to the novels' historical settings.\n\n> The key question is not only what the narrators remember, but how the novels make remembering difficult.\n\nYou might use `narrative reconstruction` as a recurring analytical frame.",
         createdAt: now,
       },
     ],
@@ -46,23 +46,23 @@ export const mockProjects: Project[] = [
     ],
   },
   {
-    id: "project-distributed-systems",
-    title: "Distributed systems notes",
+    id: "project-short-story",
+    title: "Short story notes",
     createdAt: now,
     updatedAt: now,
     messages: [
       {
-        id: "message-distributed-1",
+        id: "message-story-1",
         role: "assistant",
         content:
-          "## Notes to expand\n\n- Consensus protocols\n- Replication models\n- Failure detection\n- Tradeoffs between consistency and availability\n\n```text\nclient -> coordinator -> replicas\n```",
+          "## Notes to expand\n\n- A train station just before dawn\n- Two siblings meeting after ten years\n- A letter neither one admits to reading\n- The departure announcement interrupts the truth\n\nThe scene should stay restrained and let the setting carry the tension.",
         createdAt: now,
       },
     ],
   },
   {
-    id: "project-mcp-research",
-    title: "MCP research",
+    id: "project-literature-review",
+    title: "Literature review",
     createdAt: now,
     updatedAt: now,
     messages: [],

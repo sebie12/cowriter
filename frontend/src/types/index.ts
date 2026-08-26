@@ -5,6 +5,7 @@ export interface Message {
   role: MessageRole;
   content: string;
   createdAt: string;
+  status?: "streaming" | "complete" | "stopped" | "error";
 }
 
 export interface Project {
@@ -13,10 +14,6 @@ export interface Project {
   createdAt: string;
   updatedAt: string;
   messages: Message[];
-}
-
-export interface ChatResponse {
-  message: string;
 }
 
 export interface ChatRequest {

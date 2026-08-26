@@ -4,6 +4,7 @@ import { ApiKeyStep } from "./auth/ApiKeyStep";
 import { AuthMethodStep } from "./auth/AuthMethodStep";
 import { OAuthStep } from "./auth/OAuthStep";
 import { ServerUrlStep } from "./auth/ServerUrlStep";
+import { CloseIcon } from "../ui/Icons";
 
 interface ProviderAuthPanelProps {
   provider: ProviderSummary;
@@ -67,7 +68,7 @@ export function ProviderAuthPanel({
           <h2 id="provider-auth-title">{provider.connection ? "Configure" : "Connect"} {provider.name}</h2>
         </div>
         <button className="settings-close-button" type="button" onClick={onClose} aria-label={`Close ${provider.name} connection panel`}>
-          <span aria-hidden="true">x</span>
+          <CloseIcon />
         </button>
       </header>
 

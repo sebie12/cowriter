@@ -1,12 +1,39 @@
 import { KeyboardEvent, useEffect, useRef, useState } from "react";
+import type { ProviderModel } from "../../types/providers";
+import { SendIcon } from "../ui/Icons";
+import { ModelSelector, type ProviderOption } from "./ModelSelector";
 
 interface ComposerProps {
-  disabled: boolean;
+  hero: boolean;
+  isSending: boolean;
   canSend: boolean;
+  providers: ProviderOption[];
+  activeProviderId: number | null;
+  models: ProviderModel[];
+  selectedModelId: string | null;
+  isModelsLoading: boolean;
+  modelsError: string | null;
+  onSelectProvider: (id: number) => void;
+  onSelectModel: (id: string) => void;
   onSend: (message: string) => void;
+  onStop: () => void;
 }
 
-export function Composer({ disabled, canSend, onSend }: ComposerProps) {
+export function Composer({
+  hero,
+  isSending,
+  canSend,
+  providers,
+  activeProviderId,
+  models,
+  selectedModelId,
+  isModelsLoading,
+  modelsError,
+  onSelectProvider,
+  onSelectModel,
+  onSend,
+  onStop,
+}: ComposerProps) {
   const [value, setValue] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -22,7 +49,7 @@ export function Composer({ disabled, canSend, onSend }: ComposerProps) {
 
   const send = () => {
     const message = value.trim();
-    if (!message || disabled || !canSend) {
+    if (!message || isSending || !canSend) {
       return;
     }
 
@@ -39,34 +66,50 @@ export function Composer({ disabled, canSend, onSend }: ComposerProps) {
 
   return (
     <form
-      className="composer-wrap"
+      className={`composer-wrap ${hero ? "hero" : ""}`}
       onSubmit={(event) => {
         event.preventDefault();
         send();
       }}
     >
-      <div className="composer">
-        <div className="composer-controls">
-          <button className="composer-tool-button" type="button" title="Attach files">
-            +
-          </button>
-        </div>
+      <div className="composer" data-composer-card>
         <textarea
           ref={textareaRef}
           value={value}
-          disabled={disabled}
           rows={1}
           aria-label="Message"
-          aria-describedby="composer-hint"
-          placeholder="Ask about your writing or research..."
+          placeholder="Ask Cowriter anything..."
           onChange={(event) => setValue(event.target.value)}
           onKeyDown={handleKeyDown}
         />
-        <button className="send-button" type="submit" disabled={disabled || !canSend || !value.trim()}>
-          {disabled ? "Thinking..." : "Send"}
-        </button>
+        <div className="composer-toolbar">
+          <div className="composer-leading">
+            <span className="writing-mode">Writing</span>
+          </div>
+          <div className="composer-trailing">
+            <ModelSelector
+              providers={providers}
+              activeProviderId={activeProviderId}
+              models={models}
+              selectedModelId={selectedModelId}
+              isLoading={isModelsLoading}
+              error={modelsError}
+              disabled={isSending}
+              onSelectProvider={onSelectProvider}
+              onSelectModel={onSelectModel}
+            />
+            {isSending ? (
+              <button className="send-button stop-button" type="button" onClick={onStop} aria-label="Stop response">
+                <span aria-hidden="true" />
+              </button>
+            ) : (
+              <button className="send-button" type="submit" disabled={!canSend || !value.trim()} aria-label="Send message">
+                <SendIcon />
+              </button>
+            )}
+          </div>
+        </div>
       </div>
-      <p className="composer-hint" id="composer-hint">Enter sends. Shift + Enter adds a new line.</p>
     </form>
   );
 }

@@ -4,8 +4,7 @@ import { Sidebar } from "./components/Sidebar";
 import { Workspace } from "./components/Workspace";
 import { mockProjects } from "./data/mockProjects";
 import { useProviders } from "./hooks/useProviders";
-import { sendChatMessage } from "./services/api";
-import { fetchProviderModels } from "./services/providers";
+import type { CowriterApi } from "./services/backend/types";
 import type { Message, Project } from "./types";
 import type { ProviderModel } from "./types/providers";
 import { createId } from "./utils/ids";
@@ -45,12 +44,17 @@ function loadChatPreferences(): ChatPreferences {
   }
 }
 
-function createMessage(role: Message["role"], content: string): Message {
+function createMessage(
+  role: Message["role"],
+  content: string,
+  status: Message["status"] = "complete",
+): Message {
   return {
     id: createId("message"),
     role,
     content,
     createdAt: new Date().toISOString(),
+    status,
   };
 }
 
@@ -75,7 +79,7 @@ function titleFromMessage(message: string): string {
   return normalized.length > 42 ? `${normalized.slice(0, 42)}...` : normalized;
 }
 
-export default function App() {
+export default function App({ api }: { api: CowriterApi }) {
   const initialChatPreferencesRef = useRef<ChatPreferences | null>(null);
   if (initialChatPreferencesRef.current === null) {
     initialChatPreferencesRef.current = loadChatPreferences();
@@ -99,7 +103,8 @@ export default function App() {
   const [isModelsLoading, setIsModelsLoading] = useState(false);
   const [modelsError, setModelsError] = useState<string | null>(null);
   const isSendingRef = useRef(false);
-  const providerState = useProviders();
+  const chatControllerRef = useRef<AbortController | null>(null);
+  const providerState = useProviders(api);
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === selectedProjectId) ?? null,
@@ -172,7 +177,7 @@ export default function App() {
     setIsModelsLoading(true);
     setModelsError(null);
 
-    void fetchProviderModels(connectionId, controller.signal)
+    void api.listModels(connectionId, controller.signal)
       .then((nextModels) => {
         const nextModelId = nextModels.some((model) => model.id === previousModelId)
           ? previousModelId
@@ -201,7 +206,7 @@ export default function App() {
       });
 
     return () => controller.abort();
-  }, [activeConnection?.id, activeConnection?.endpointUrl, activeConnection?.updatedAt, providerState.refreshVersion]);
+  }, [api, activeConnection?.id, activeConnection?.endpointUrl, activeConnection?.updatedAt, providerState.refreshVersion]);
 
   const updateProjectMessages = (projectId: string, messages: Message[], title?: string) => {
     const timestamp = new Date().toISOString();
@@ -238,6 +243,23 @@ export default function App() {
     );
   };
 
+  const updateProjectMessageStatus = (
+    projectId: string,
+    messageId: string,
+    status: NonNullable<Message["status"]>,
+  ) => {
+    const timestamp = new Date().toISOString();
+    setProjects((currentProjects) => currentProjects.map((project) => project.id === projectId
+      ? {
+          ...project,
+          updatedAt: timestamp,
+          messages: project.messages.map((message) => message.id === messageId
+            ? { ...message, status }
+            : message),
+        }
+      : project));
+  };
+
   const handleNewProject = () => {
     const project = createProject();
     setProjects((currentProjects) => [project, ...currentProjects]);
@@ -268,49 +290,66 @@ export default function App() {
     }
 
     const userMessage = createMessage("user", trimmedContent);
+    const assistantMessage = createMessage("assistant", "", "streaming");
     const shouldRenameProject = activeProject.title === "Untitled project" && activeProject.messages.length === 0;
     updateProjectMessages(
       activeProject.id,
-      [userMessage],
+      [userMessage, assistantMessage],
       shouldRenameProject ? titleFromMessage(trimmedContent) : undefined,
     );
     setSendingProjectId(activeProject.id);
+    const controller = new AbortController();
+    chatControllerRef.current = controller;
 
     try {
-      let assistantMessageId: string | null = null;
-      await sendChatMessage(
+      await api.streamChat(
         {
           connectionId: activeConnection.id,
           provider: activeConnection.providerId,
           model: selectedModelId,
           message: trimmedContent,
-          history: activeProject.messages.map(({ role, content: messageContent }) => ({
-            role,
-            content: messageContent,
-          })),
+          history: activeProject.messages
+            .filter((message) => message.content.trim().length > 0)
+            .map(({ role, content: messageContent }) => ({
+              role,
+              content: messageContent,
+            })),
         },
-        (chunk) => {
-          if (assistantMessageId === null) {
-            const assistantMessage = createMessage("assistant", chunk);
-            assistantMessageId = assistantMessage.id;
-            updateProjectMessages(activeProject.id, [assistantMessage]);
-            return;
+        (event) => {
+          if (event.type === "delta") {
+            appendToProjectMessage(activeProject.id, assistantMessage.id, event.content);
+          } else {
+            updateProjectMessageStatus(activeProject.id, assistantMessage.id, "complete");
           }
-          appendToProjectMessage(activeProject.id, assistantMessageId, chunk);
         },
+        controller.signal,
       );
     } catch (requestError) {
+      if (requestError instanceof Error && requestError.name === "AbortError") {
+        updateProjectMessageStatus(activeProject.id, assistantMessage.id, "stopped");
+        return;
+      }
+      updateProjectMessageStatus(activeProject.id, assistantMessage.id, "error");
       setError(
         requestError instanceof Error
           ? requestError.message
           : "Could not reach the Python backend.",
       );
     } finally {
+      if (chatControllerRef.current === controller) {
+        chatControllerRef.current = null;
+      }
       isSendingRef.current = false;
       setIsSending(false);
       setSendingProjectId(null);
     }
   };
+
+  const handleStopMessage = () => {
+    chatControllerRef.current?.abort();
+  };
+
+  useEffect(() => () => chatControllerRef.current?.abort(), []);
 
   return (
     <div className="app-shell">
@@ -336,11 +375,21 @@ export default function App() {
         isSending={isSending}
         isThinking={isSending && sendingProjectId === selectedProject?.id}
         error={error}
-        providerName={providerState.providers.find((provider) => provider.id === activeConnection?.providerId)?.name ?? null}
+        providers={connectedProviders.map((connection) => ({
+          id: connection.id,
+          name: providerState.providers.find((provider) => provider.id === connection.providerId)?.name ?? connection.providerId,
+          detail: connection.accountLabel,
+        }))}
+        activeProviderId={activeConnectionId}
         models={models}
         selectedModelId={selectedModelId}
         isModelsLoading={isModelsLoading}
         modelsError={modelsError}
+        onSelectProvider={(connectionId) => {
+          setModels([]);
+          setModelsConnectionId(null);
+          setActiveConnectionId(connectionId);
+        }}
         onSelectModel={(modelId) => {
           if (!activeConnection || !models.some((model) => model.id === modelId)) {
             return;
@@ -351,7 +400,7 @@ export default function App() {
           }));
         }}
         onSendMessage={handleSendMessage}
-        onSelectPrompt={(prompt) => void handleSendMessage(prompt)}
+        onStopMessage={handleStopMessage}
       />
       {isSettingsOpen && (
         <SettingsModal
