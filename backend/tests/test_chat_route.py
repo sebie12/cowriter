@@ -1,9 +1,10 @@
+import json
 import unittest
 
 from flask import Flask
 
 from backend.blueprints.chat import chat_bp
-from backend.llm import ChatResult, LLMError
+from backend.llm import LLMError
 
 
 class FakeChatService:
@@ -11,11 +12,11 @@ class FakeChatService:
         self.request = None
         self.error = None
 
-    def chat(self, request):
+    def stream_chat(self, request):
         self.request = request
         if self.error:
             raise self.error
-        return ChatResult(message="provider response")
+        return iter(["provider ", "response"])
 
 
 class ChatRouteTests(unittest.TestCase):
@@ -40,7 +41,15 @@ class ChatRouteTests(unittest.TestCase):
         })
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.get_json(), {"message": "provider response"})
+        self.assertEqual(response.content_type, "application/x-ndjson")
+        self.assertEqual(
+            [json.loads(line) for line in response.get_data(as_text=True).splitlines()],
+            [
+                {"type": "delta", "content": "provider "},
+                {"type": "delta", "content": "response"},
+                {"type": "done"},
+            ],
+        )
         self.assertEqual(self.service.request.provider, "openai")
         self.assertEqual(self.service.request.message, "Latest question")
         self.assertEqual(self.service.request.system_prompt, "Be concise.")

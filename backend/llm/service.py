@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import Any
 
 if __package__ and __package__.startswith("backend."):
@@ -28,6 +28,13 @@ class ChatService:
             requested_provider=request.provider,
         )
         return provider.chat(request, config)
+
+    def stream_chat(self, request: ChatRequest) -> Iterator[str]:
+        provider, config = self._resolve_provider(
+            connection_id=request.connection_id,
+            requested_provider=request.provider,
+        )
+        return provider.stream_chat(request, config)
 
     def supports_provider(self, provider_id: str) -> bool:
         normalized_provider_id = normalize_identifier(provider_id)

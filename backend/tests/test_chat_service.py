@@ -24,11 +24,16 @@ class FakeProvider:
 
     def __init__(self):
         self.chat_call = None
+        self.stream_chat_call = None
         self.models_config = None
 
     def chat(self, request, config):
         self.chat_call = (request, config)
         return ChatResult(message="answer")
+
+    def stream_chat(self, request, config):
+        self.stream_chat_call = (request, config)
+        return iter(["streamed ", "answer"])
 
     def list_models(self, config):
         self.models_config = config
@@ -72,6 +77,15 @@ class ChatServiceTests(unittest.TestCase):
         self.assertEqual(provider_id, "openai")
         self.assertEqual(models, ["gpt-test"])
         self.assertEqual(self.provider.models_config.credentials, {"api_key": "secret"})
+
+    def test_streams_chat_through_selected_provider(self):
+        request = ChatRequest(7, "OpenAI", "gpt-test", "Hello")
+
+        chunks = list(self.service.stream_chat(request))
+
+        self.assertEqual(chunks, ["streamed ", "answer"])
+        self.assertEqual(self.provider.stream_chat_call[0], request)
+        self.assertEqual(self.provider.stream_chat_call[1].credentials, {"api_key": "secret"})
 
     def test_rejects_connection_provider_mismatch(self):
         request = ChatRequest(7, "ollama", "model", "Hello")

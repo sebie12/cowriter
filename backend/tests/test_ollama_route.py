@@ -1,3 +1,4 @@
+import json
 import unittest
 from unittest.mock import patch
 
@@ -8,7 +9,7 @@ from backend.blueprints.provider_connections import provider_connections_bp
 from backend.blueprints.providers import providers_bp
 from backend.database import AuthMethod, Provider, ProviderConnection, db
 from backend.database.catalog import ensure_provider_catalog
-from backend.llm import ChatResult, ChatService, ProviderConfig
+from backend.llm import ChatService, ProviderConfig
 
 
 class OllamaRouteTests(unittest.TestCase):
@@ -200,9 +201,9 @@ class OllamaRouteTests(unittest.TestCase):
         ]
 
         with patch(
-            "backend.auth.providers.Ollama.OllamaProvider.chat",
-            return_value=ChatResult(message="Ollama answer"),
-        ) as chat:
+            "backend.auth.providers.Ollama.OllamaProvider.stream_chat",
+            return_value=iter(["Ollama ", "answer"]),
+        ) as stream_chat:
             response = self.app.test_client().post(
                 "/api/chat",
                 json={
@@ -216,8 +217,15 @@ class OllamaRouteTests(unittest.TestCase):
             )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.get_json(), {"message": "Ollama answer"})
-        request, config = chat.call_args.args
+        self.assertEqual(
+            [json.loads(line) for line in response.get_data(as_text=True).splitlines()],
+            [
+                {"type": "delta", "content": "Ollama "},
+                {"type": "delta", "content": "answer"},
+                {"type": "done"},
+            ],
+        )
+        request, config = stream_chat.call_args.args
         self.assertEqual(request.provider, "ollama")
         self.assertEqual(request.model, "qwen3:8b")
         self.assertEqual(request.message, "Follow-up")

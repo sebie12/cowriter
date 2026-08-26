@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from collections.abc import Iterator
 from typing import Mapping, Protocol
 
 
@@ -35,6 +36,9 @@ class LLMProvider(Protocol):
     credential_fields: tuple[str, ...]
 
     def chat(self, request: ChatRequest, config: ProviderConfig) -> ChatResult:
+        ...
+
+    def stream_chat(self, request: ChatRequest, config: ProviderConfig) -> Iterator[str]:
         ...
 
     def list_models(self, config: ProviderConfig) -> list[str]:

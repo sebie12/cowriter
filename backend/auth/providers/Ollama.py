@@ -1,5 +1,6 @@
 import ipaddress
 import os
+from collections.abc import Iterator
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -147,6 +148,13 @@ class OllamaProvider:
         request: ChatRequest,
         config: ProviderConfig,
     ) -> ChatResult:
+        return ChatResult(message="".join(self.stream_chat(request, config)))
+
+    def stream_chat(
+        self,
+        request: ChatRequest,
+        config: ProviderConfig,
+    ) -> Iterator[str]:
         if not config.endpoint_url:
             raise LLMError("Ollama server is not configured.", 409)
 
@@ -168,11 +176,18 @@ class OllamaProvider:
                 follow_redirects=False,
                 trust_env=False,
             ) as client:
-                response: ollama.ChatResponse = client.chat(
+                response = client.chat(
                     model=request.model,
                     messages=messages,
-                    stream=False,
+                    stream=True,
                 )
+                has_content = False
+                for chunk in response:
+                    content = chunk.message.content
+                    if isinstance(content, str) and content:
+                        if content.strip():
+                            has_content = True
+                        yield content
         except ollama.ResponseError as error:
             if error.status_code == 404:
                 raise LLMError("The selected Ollama model is not installed.", 404) from error
@@ -182,10 +197,8 @@ class OllamaProvider:
         except Exception as error:
             raise LLMError("Could not communicate with Ollama.", 502) from error
 
-        content = response.message.content
-        if not isinstance(content, str) or not content.strip():
+        if not has_content:
             raise LLMError("Ollama returned an empty response.", 502)
-        return ChatResult(message=content)
 
 
 class OllamaConnector(ProviderConnector):

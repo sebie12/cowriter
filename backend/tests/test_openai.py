@@ -24,7 +24,7 @@ class FakeModels:
 
 
 class FakeOpenAIClient:
-    def __init__(self, chat_content="Test response", **options):
+    def __init__(self, chat_content="Test response", chat_chunks=None, **options):
         self.options = options
         self.chat_call = None
         self.models_called = False
@@ -33,9 +33,11 @@ class FakeOpenAIClient:
             SimpleNamespace(id="gpt-a"),
             SimpleNamespace(id="gpt-z"),
         ])
-        self.chat_response = SimpleNamespace(
-            choices=[SimpleNamespace(message=SimpleNamespace(content=chat_content))],
-        )
+        chunks = chat_chunks if chat_chunks is not None else [chat_content]
+        self.chat_response = iter([
+            SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content=content))])
+            for content in chunks
+        ])
         self.models = FakeModels(self)
         self.chat = SimpleNamespace(completions=FakeCompletions(self))
 
@@ -104,8 +106,21 @@ class OpenAIProviderTests(unittest.TestCase):
                 {"role": "assistant", "content": "Earlier response"},
                 {"role": "user", "content": "Latest question"},
             ],
+            "stream": True,
         })
         self.assertEqual(clients[0].options["timeout"], 120.0)
+
+    def test_yields_response_chunks(self):
+        provider = OpenAIProvider(
+            lambda **options: FakeOpenAIClient(chat_chunks=["Test", " response"], **options),
+        )
+
+        chunks = list(provider.stream_chat(
+            ChatRequest(1, "openai", "gpt-test", "Hello"),
+            ProviderConfig(credentials={"api_key": "test-key"}),
+        ))
+
+        self.assertEqual(chunks, ["Test", " response"])
 
     def test_rejects_empty_response(self):
         provider = OpenAIProvider(lambda **options: FakeOpenAIClient(chat_content=None, **options))

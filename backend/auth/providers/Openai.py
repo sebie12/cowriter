@@ -1,4 +1,5 @@
 import hashlib
+from collections.abc import Iterator
 from typing import Any
 
 import openai
@@ -78,6 +79,13 @@ class OpenAIProvider:
         )
 
     def chat(self, request: ChatRequest, config: ProviderConfig) -> ChatResult:
+        return ChatResult(message="".join(self.stream_chat(request, config)))
+
+    def stream_chat(
+        self,
+        request: ChatRequest,
+        config: ProviderConfig,
+    ) -> Iterator[str]:
         api_key = self._api_key(config)
         messages = []
         if request.system_prompt:
@@ -90,7 +98,15 @@ class OpenAIProvider:
                 response = client.chat.completions.create(
                     model=request.model,
                     messages=messages,
+                    stream=True,
                 )
+                has_content = False
+                for chunk in response:
+                    content = chunk.choices[0].delta.content if chunk.choices else None
+                    if isinstance(content, str) and content:
+                        if content.strip():
+                            has_content = True
+                        yield content
         except openai.AuthenticationError as error:
             raise LLMError("OpenAI credentials are invalid.", 401) from error
         except openai.NotFoundError as error:
@@ -104,10 +120,8 @@ class OpenAIProvider:
         except openai.APIError as error:
             raise LLMError("OpenAI could not complete the chat request.", 502) from error
 
-        content = response.choices[0].message.content if response.choices else None
-        if not isinstance(content, str) or not content.strip():
+        if not has_content:
             raise LLMError("OpenAI returned an empty response.", 502)
-        return ChatResult(message=content)
 
     def _api_key(self, config: ProviderConfig) -> str:
         api_key = config.credentials.get("api_key")

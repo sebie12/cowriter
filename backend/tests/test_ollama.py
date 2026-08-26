@@ -35,7 +35,9 @@ class FakeClient:
         self.chat_call = options
         if self.request_error:
             raise self.request_error
-        return self.chat_response
+        if isinstance(self.chat_response, list):
+            return iter(self.chat_response)
+        return iter([self.chat_response])
 
 
 class OllamaProviderTests(unittest.TestCase):
@@ -138,9 +140,25 @@ class OllamaProviderTests(unittest.TestCase):
                 {"role": "assistant", "content": "Previous answer"},
                 {"role": "user", "content": "Hello"},
             ],
-            "stream": False,
+            "stream": True,
         })
         self.assertEqual(clients[0].options["timeout"], 120.0)
+
+    def test_yields_response_chunks(self):
+        responses = [
+            ollama.ChatResponse(message=ollama.Message(role="assistant", content="Test")),
+            ollama.ChatResponse(message=ollama.Message(role="assistant", content=" response")),
+        ]
+        provider = OllamaProvider(
+            lambda **options: FakeClient(chat_response=responses, **options),
+        )
+
+        chunks = list(provider.stream_chat(
+            ChatRequest(1, "ollama", "qwen3:8b", "Hello"),
+            ProviderConfig(endpoint_url="http://127.0.0.1:11434"),
+        ))
+
+        self.assertEqual(chunks, ["Test", " response"])
 
     def test_rejects_empty_chat_response(self):
         response = ollama.ChatResponse(

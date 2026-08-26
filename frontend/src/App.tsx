@@ -222,6 +222,22 @@ export default function App() {
     );
   };
 
+  const appendToProjectMessage = (projectId: string, messageId: string, content: string) => {
+    const timestamp = new Date().toISOString();
+
+    setProjects((currentProjects) =>
+      currentProjects.map((project) => project.id === projectId
+        ? {
+            ...project,
+            updatedAt: timestamp,
+            messages: project.messages.map((message) => message.id === messageId
+              ? { ...message, content: message.content + content }
+              : message),
+          }
+        : project),
+    );
+  };
+
   const handleNewProject = () => {
     const project = createProject();
     setProjects((currentProjects) => [project, ...currentProjects]);
@@ -261,17 +277,28 @@ export default function App() {
     setSendingProjectId(activeProject.id);
 
     try {
-      const response = await sendChatMessage({
-        connectionId: activeConnection.id,
-        provider: activeConnection.providerId,
-        model: selectedModelId,
-        message: trimmedContent,
-        history: activeProject.messages.map(({ role, content: messageContent }) => ({
-          role,
-          content: messageContent,
-        })),
-      });
-      updateProjectMessages(activeProject.id, [createMessage("assistant", response.message)]);
+      let assistantMessageId: string | null = null;
+      await sendChatMessage(
+        {
+          connectionId: activeConnection.id,
+          provider: activeConnection.providerId,
+          model: selectedModelId,
+          message: trimmedContent,
+          history: activeProject.messages.map(({ role, content: messageContent }) => ({
+            role,
+            content: messageContent,
+          })),
+        },
+        (chunk) => {
+          if (assistantMessageId === null) {
+            const assistantMessage = createMessage("assistant", chunk);
+            assistantMessageId = assistantMessage.id;
+            updateProjectMessages(activeProject.id, [assistantMessage]);
+            return;
+          }
+          appendToProjectMessage(activeProject.id, assistantMessageId, chunk);
+        },
+      );
     } catch (requestError) {
       setError(
         requestError instanceof Error

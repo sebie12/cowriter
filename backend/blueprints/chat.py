@@ -1,4 +1,6 @@
-from flask import Blueprint, current_app, jsonify, request
+import json
+
+from flask import Blueprint, Response, current_app, jsonify, request, stream_with_context
 
 if __package__ and __package__.startswith("backend."):
     from ..llm import ChatRequest, LLMError
@@ -63,8 +65,28 @@ def chat():
 
     try:
         chat_request = parse_chat_payload(request.get_json(silent=True))
-        result = current_app.extensions["chat_service"].chat(chat_request)
+        chunks = iter(current_app.extensions["chat_service"].stream_chat(chat_request))
+        first_chunk = next(chunks)
+    except StopIteration:
+        return jsonify({"error": "The provider returned an empty response."}), 502
     except LLMError as error:
         return jsonify({"error": error.message}), error.status_code
 
-    return jsonify({"message": result.message})
+    def generate():
+        yield json.dumps({"type": "delta", "content": first_chunk}) + "\n"
+        try:
+            for chunk in chunks:
+                yield json.dumps({"type": "delta", "content": chunk}) + "\n"
+        except LLMError as error:
+            yield json.dumps({"type": "error", "error": error.message}) + "\n"
+            return
+        yield json.dumps({"type": "done"}) + "\n"
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="application/x-ndjson",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )

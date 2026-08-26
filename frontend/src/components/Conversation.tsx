@@ -56,6 +56,7 @@ function TypingIndicator() {
 
 export function Conversation({ messages, isSending }: ConversationProps) {
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
+  const isAwaitingResponse = isSending && messages[messages.length - 1]?.role !== "assistant";
 
   useEffect(() => {
     const handleZoomShortcut = (event: KeyboardEvent) => {
@@ -102,7 +103,7 @@ export function Conversation({ messages, isSending }: ConversationProps) {
           <AssistantMessage key={message.id} message={message} />
         ),
       )}
-      {isSending && <TypingIndicator />}
+      {isAwaitingResponse && <TypingIndicator />}
     </section>
   );
 }
