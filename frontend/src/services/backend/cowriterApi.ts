@@ -7,6 +7,7 @@ import type {
   ProviderModel,
   SupportedProvider,
 } from "../../types/providers";
+import type { Message, Project } from "../../types";
 import { request, requestJson } from "./http";
 import type { ChatStreamEvent, CowriterApi } from "./types";
 
@@ -17,6 +18,16 @@ interface ProviderConnectionResponse {
   account_label?: unknown;
   endpoint_url?: unknown;
   status?: unknown;
+  created_at?: unknown;
+  updated_at?: unknown;
+}
+
+interface ProjectResponse {
+  id?: unknown;
+  name?: unknown;
+  description?: unknown;
+  path?: unknown;
+  conversations?: unknown;
   created_at?: unknown;
   updated_at?: unknown;
 }
@@ -77,6 +88,63 @@ function normalizeProviderConnection(value: unknown): ProviderConnection {
   };
 }
 
+function normalizeProjectMessage(value: unknown): Message | null {
+  if (
+    !isRecord(value)
+    || typeof value.id !== "number"
+    || (value.role !== "user" && value.role !== "assistant")
+    || typeof value.content !== "string"
+    || typeof value.created_at !== "string"
+  ) {
+    return null;
+  }
+  return {
+    id: String(value.id),
+    role: value.role,
+    content: value.content,
+    createdAt: value.created_at,
+    status: "complete",
+  };
+}
+
+function normalizeProject(value: unknown): Project {
+  if (!isRecord(value)) {
+    throw new Error("Backend returned an invalid project.");
+  }
+  const project = value as ProjectResponse;
+  if (
+    typeof project.id !== "number"
+    || typeof project.name !== "string"
+    || (project.description !== null && typeof project.description !== "string")
+    || (project.path !== null && typeof project.path !== "string")
+    || !Array.isArray(project.conversations)
+    || typeof project.created_at !== "string"
+    || typeof project.updated_at !== "string"
+  ) {
+    throw new Error("Backend returned an invalid project.");
+  }
+
+  const messages = project.conversations.flatMap((conversation) => {
+    if (!isRecord(conversation) || !Array.isArray(conversation.messages)) {
+      throw new Error("Backend returned an invalid project conversation.");
+    }
+    return conversation.messages
+      .map(normalizeProjectMessage)
+      .filter((message): message is Message => message !== null);
+  });
+
+  return {
+    id: String(project.id),
+    title: project.name,
+    path: project.path,
+    writingContext: project.description,
+    writingContent: "",
+    createdAt: project.created_at,
+    updatedAt: project.updated_at,
+    messages,
+  };
+}
+
 function normalizeProvider(value: unknown): SupportedProvider {
   if (!isRecord(value) || typeof value.id !== "string" || typeof value.name !== "string") {
     throw new Error("Backend returned an invalid provider.");
@@ -116,6 +184,36 @@ function processStreamLine(line: string): ChatStreamEvent | { type: "error"; err
 }
 
 export const cowriterApi: CowriterApi = {
+  async listProjects(signal) {
+    const projects = await requestJson<unknown>("/api/projects", { signal });
+    if (!Array.isArray(projects)) {
+      throw new Error("Backend returned an invalid project list.");
+    }
+    return projects.map(normalizeProject);
+  },
+
+  async createProject(input, signal) {
+    const project = await requestJson<unknown>("/api/projects", {
+      method: "POST",
+      signal,
+      body: JSON.stringify({
+        name: input.name,
+        description: input.writingContext
+          ? {
+              tone: input.writingContext.tone,
+              writing_style: input.writingContext.writingStyle,
+              academic_level: input.writingContext.academicLevel,
+              language: input.writingContext.language,
+              essay_type: input.writingContext.essayType,
+              additional_instructions: input.writingContext.additionalInstructions,
+            }
+          : null,
+        path: input.path,
+      }),
+    });
+    return normalizeProject(project);
+  },
+
   async streamChat(input, onEvent, signal) {
     const response = await request("/api/chat", {
       method: "POST",
@@ -125,6 +223,8 @@ export const cowriterApi: CowriterApi = {
         provider: input.provider,
         model: input.model,
         message: input.message,
+        title: input.projectTitle,
+        description: input.projectDescription,
         system_prompt: input.systemPrompt,
         history: input.history ?? [],
       }),

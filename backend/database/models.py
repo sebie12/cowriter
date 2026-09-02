@@ -91,15 +91,9 @@ class Project(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True)
     description = db.Column(db.String(255), nullable=True)
+    path = db.Column(db.String(255), nullable=True, unique=True)
+    language = db.Column(db.String(10), nullable=True, default="en")
 
-    essay = db.relationship(
-        "Essay",
-        back_populates="project",
-        cascade="all, delete-orphan",
-        passive_deletes=True,
-        single_parent=True,
-        uselist=False,
-    )
     conversations = db.relationship(
         "Conversation",
         back_populates="project",
@@ -127,49 +121,10 @@ class Project(db.Model):
             "id": self.id,
             "name": self.name,
             "description": self.description,
-            "essay": self.essay.to_dict() if self.essay else None,
             "conversations": [
                 conversation.to_dict() for conversation in self.conversations
             ],
-            "created_at": _isoformat(self.created_at),
-            "updated_at": _isoformat(self.updated_at),
-        }
-
-class Essay(db.Model):
-    __tablename__ = "essays"
-    __table_args__ = (
-        db.UniqueConstraint("project_id", name="uq_essays_project_id"),
-    )
-
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(200), nullable=False)
-    project_id = db.Column(
-        db.Integer,
-        db.ForeignKey("projects.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-
-    project = db.relationship("Project", back_populates="essay")
-
-    created_at = db.Column(
-        db.DateTime,
-        default=db.func.current_timestamp()
-    )
-
-    updated_at = db.Column(
-        db.DateTime,
-        default=db.func.current_timestamp(),
-        onupdate=db.func.current_timestamp()
-    )
-
-    def __str__(self):
-        return self.title
-
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "title": self.title,
-            "project_id": self.project_id,
+            "path": self.path,
             "created_at": _isoformat(self.created_at),
             "updated_at": _isoformat(self.updated_at),
         }

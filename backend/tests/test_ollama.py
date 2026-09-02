@@ -137,8 +137,14 @@ class OllamaProviderTests(unittest.TestCase):
             "model": "qwen3:8b",
             "messages": [
                 {"role": "system", "content": "Be concise."},
-                {"role": "assistant", "content": "Previous answer"},
-                {"role": "user", "content": "Hello"},
+                {
+                    "role": "assistant",
+                    "content": "<|im_start|>assistant\nPrevious answer<|im_end|>",
+                },
+                {
+                    "role": "user",
+                    "content": "<|im_start|>user\nHello<|im_end|>",
+                },
             ],
             "stream": True,
         })

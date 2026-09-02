@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ProjectModal } from "./components/projects/ProjectModal";
 import { SettingsModal } from "./components/settings/SettingsModal";
 import { Sidebar } from "./components/Sidebar";
 import { Workspace } from "./components/Workspace";
-import { mockProjects } from "./data/mockProjects";
 import { useProviders } from "./hooks/useProviders";
+import { projectFilesystemService } from "./services/projectFilesystem";
 import type { CowriterApi } from "./services/backend/types";
-import type { Message, Project } from "./types";
+import type { CreateProjectInput, Message, Project } from "./types";
 import type { ProviderModel } from "./types/providers";
 import { createId } from "./utils/ids";
 
@@ -58,18 +59,6 @@ function createMessage(
   };
 }
 
-function createProject(title = "Untitled project"): Project {
-  const timestamp = new Date().toISOString();
-
-  return {
-    id: createId("project"),
-    title,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-    messages: [],
-  };
-}
-
 function titleFromMessage(message: string): string {
   const normalized = message.trim().replace(/\s+/g, " ");
   if (!normalized) {
@@ -85,9 +74,13 @@ export default function App({ api }: { api: CowriterApi }) {
     initialChatPreferencesRef.current = loadChatPreferences();
   }
   const initialChatPreferences = initialChatPreferencesRef.current;
-  const [projects, setProjects] = useState<Project[]>(mockProjects);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [isProjectsLoading, setIsProjectsLoading] = useState(true);
+  const [projectsError, setProjectsError] = useState<string | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
+  const [pendingProjectMessage, setPendingProjectMessage] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [sendingProjectId, setSendingProjectId] = useState<string | null>(null);
@@ -130,6 +123,29 @@ export default function App({ api }: { api: CowriterApi }) {
     && models.some((model) => model.id === preferredModelId)
     ? preferredModelId
     : null;
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    void api.listProjects(controller.signal)
+      .then((loadedProjects) => {
+        setProjects(loadedProjects);
+        setProjectsError(null);
+      })
+      .catch((loadError) => {
+        if (loadError instanceof Error && loadError.name === "AbortError") {
+          return;
+        }
+        setProjectsError(loadError instanceof Error ? loadError.message : "Could not load projects.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setIsProjectsLoading(false);
+        }
+      });
+
+    return () => controller.abort();
+  }, [api]);
 
   useEffect(() => {
     if (providerState.isLoading || providerState.isRefreshing || providerState.error) {
@@ -260,19 +276,7 @@ export default function App({ api }: { api: CowriterApi }) {
       : project));
   };
 
-  const handleNewProject = () => {
-    const project = createProject();
-    setProjects((currentProjects) => [project, ...currentProjects]);
-    setSelectedProjectId(project.id);
-    setIsSettingsOpen(false);
-    setError(null);
-  };
-
-  const handleSendMessage = async (content: string) => {
-    const trimmedContent = content.trim();
-    if (!trimmedContent || isSendingRef.current) {
-      return;
-    }
+  const sendMessageToProject = async (activeProject: Project, trimmedContent: string) => {
     if (!activeConnection || !selectedModelId || isModelsLoading) {
       setError("Connect a provider and select a model before sending a message.");
       return;
@@ -281,13 +285,6 @@ export default function App({ api }: { api: CowriterApi }) {
     isSendingRef.current = true;
     setError(null);
     setIsSending(true);
-
-    let activeProject = selectedProject;
-    if (!activeProject) {
-      activeProject = createProject(titleFromMessage(trimmedContent));
-      setProjects((currentProjects) => [activeProject as Project, ...currentProjects]);
-      setSelectedProjectId(activeProject.id);
-    }
 
     const userMessage = createMessage("user", trimmedContent);
     const assistantMessage = createMessage("assistant", "", "streaming");
@@ -308,6 +305,8 @@ export default function App({ api }: { api: CowriterApi }) {
           provider: activeConnection.providerId,
           model: selectedModelId,
           message: trimmedContent,
+          projectTitle: activeProject.title,
+          projectDescription: activeProject.writingContext ?? undefined,
           history: activeProject.messages
             .filter((message) => message.content.trim().length > 0)
             .map(({ role, content: messageContent }) => ({
@@ -345,27 +344,90 @@ export default function App({ api }: { api: CowriterApi }) {
     }
   };
 
+  const handleSendMessage = async (content: string) => {
+    const trimmedContent = content.trim();
+    if (!trimmedContent || isSendingRef.current) {
+      return;
+    }
+    if (!activeConnection || !selectedModelId || isModelsLoading) {
+      setError("Connect a provider and select a model before sending a message.");
+      return;
+    }
+    if (!selectedProject) {
+      setPendingProjectMessage(trimmedContent);
+      setIsSettingsOpen(false);
+      setIsProjectModalOpen(true);
+      setError(null);
+      return;
+    }
+    await sendMessageToProject(selectedProject, trimmedContent);
+  };
+
+  const handleCreateProject = async (input: CreateProjectInput) => {
+    const project = await api.createProject(input);
+    setProjects((currentProjects) => [project, ...currentProjects]);
+    setProjectsError(null);
+    setSelectedProjectId(project.id);
+    setIsSettingsOpen(false);
+    setError(null);
+
+    const initialMessage = pendingProjectMessage;
+    setPendingProjectMessage(null);
+    if (initialMessage) {
+      void sendMessageToProject(project, initialMessage);
+    }
+  };
+
   const handleStopMessage = () => {
     chatControllerRef.current?.abort();
   };
 
   useEffect(() => () => chatControllerRef.current?.abort(), []);
 
+  const handleWritingContentChange = (projectId: string, writingContent: string) => {
+    setProjects((currentProjects) => currentProjects.map((project) => {
+      if (project.id !== projectId || project.writingContent === writingContent) {
+        return project;
+      }
+      return {
+        ...project,
+        writingContent,
+        updatedAt: new Date().toISOString(),
+      };
+    }));
+  };
+
   return (
     <div className="app-shell">
       <Sidebar
         collapsed={sidebarCollapsed}
         projects={projects}
+        isProjectsLoading={isProjectsLoading}
+        projectsError={projectsError}
         selectedProjectId={selectedProjectId}
         settingsActive={isSettingsOpen}
-        onNewProject={handleNewProject}
+        activeProject={selectedProject}
+        filesystemService={projectFilesystemService}
+        onNewProject={() => {
+          setPendingProjectMessage(null);
+          setIsSettingsOpen(false);
+          setIsProjectModalOpen(true);
+          setError(null);
+        }}
         onSelectProject={(projectId) => {
           setSelectedProjectId(projectId);
           setIsSettingsOpen(false);
+          setIsProjectModalOpen(false);
+          setError(null);
+        }}
+        onClearActiveProject={() => {
+          setSelectedProjectId(null);
           setError(null);
         }}
         onOpenSettings={() => {
           setIsSettingsOpen(true);
+          setIsProjectModalOpen(false);
+          setPendingProjectMessage(null);
           setError(null);
         }}
         onToggleCollapsed={() => setSidebarCollapsed((collapsed) => !collapsed)}
@@ -385,6 +447,7 @@ export default function App({ api }: { api: CowriterApi }) {
         selectedModelId={selectedModelId}
         isModelsLoading={isModelsLoading}
         modelsError={modelsError}
+        filesystemService={projectFilesystemService}
         onSelectProvider={(connectionId) => {
           setModels([]);
           setModelsConnectionId(null);
@@ -401,7 +464,19 @@ export default function App({ api }: { api: CowriterApi }) {
         }}
         onSendMessage={handleSendMessage}
         onStopMessage={handleStopMessage}
+        onWritingContentChange={handleWritingContentChange}
       />
+      {isProjectModalOpen && (
+        <ProjectModal
+          filesystemService={projectFilesystemService}
+          initialName={pendingProjectMessage ? titleFromMessage(pendingProjectMessage) : undefined}
+          onCreateProject={handleCreateProject}
+          onClose={() => {
+            setIsProjectModalOpen(false);
+            setPendingProjectMessage(null);
+          }}
+        />
+      )}
       {isSettingsOpen && (
         <SettingsModal
           providerState={providerState}

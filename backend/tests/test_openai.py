@@ -103,8 +103,14 @@ class OpenAIProviderTests(unittest.TestCase):
             "model": "gpt-test",
             "messages": [
                 {"role": "system", "content": "Be concise."},
-                {"role": "assistant", "content": "Earlier response"},
-                {"role": "user", "content": "Latest question"},
+                {
+                    "role": "assistant",
+                    "content": "<|im_start|>assistant\nEarlier response<|im_end|>",
+                },
+                {
+                    "role": "user",
+                    "content": "<|im_start|>user\nLatest question<|im_end|>",
+                },
             ],
             "stream": True,
         })

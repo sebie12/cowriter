@@ -3,7 +3,7 @@ import unittest
 from flask import Flask
 
 from backend.blueprints.projects import projects_bp
-from backend.database import Conversation, Essay, Message, Project, db
+from backend.database import Conversation, Message, Project, db
 
 
 class ProjectRouteTests(unittest.TestCase):
@@ -29,13 +29,20 @@ class ProjectRouteTests(unittest.TestCase):
             db.drop_all()
             db.create_all()
 
-    def test_creates_project_essay_conversations_and_messages_atomically(self):
+    def test_creates_project_conversations_and_messages_atomically(self):
         response = self.app.test_client().post(
             "/api/projects",
             json={
                 "name": "  Research project  ",
-                "description": "  Project description  ",
-                "essay": {"title": "  Research essay  "},
+                "description": {
+                    "tone": "Academic",
+                    "writing_style": "Formal",
+                    "academic_level": "Graduate",
+                    "language": "English",
+                    "essay_type": "Argumentative",
+                    "additional_instructions": "  cite recent sources  ",
+                },
+                "path": "  /tmp/research-project  ",
                 "conversations": [
                     {
                         "messages": [
@@ -51,8 +58,16 @@ class ProjectRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 201)
         payload = response.get_json()
         self.assertEqual(payload["name"], "Research project")
-        self.assertEqual(payload["description"], "Project description")
-        self.assertEqual(payload["essay"]["title"], "Research essay")
+        self.assertEqual(
+            payload["description"],
+            "Use an academic tone.\n"
+            "Use a formal writing style.\n"
+            "Write in English.\n"
+            "Write for a graduate academic level.\n"
+            "Write an argumentative essay.\n"
+            "Also: cite recent sources",
+        )
+        self.assertEqual(payload["path"], "/tmp/research-project")
         self.assertEqual(len(payload["conversations"]), 2)
         self.assertEqual(
             payload["conversations"][0]["messages"][0]["content"],
@@ -61,7 +76,6 @@ class ProjectRouteTests(unittest.TestCase):
 
         with self.app.app_context():
             self.assertEqual(Project.query.count(), 1)
-            self.assertEqual(Essay.query.count(), 1)
             self.assertEqual(Conversation.query.count(), 2)
             self.assertEqual(Message.query.count(), 2)
 
@@ -71,7 +85,7 @@ class ProjectRouteTests(unittest.TestCase):
             "/api/projects",
             json={
                 "name": "Serialized project",
-                "essay": {"title": "Serialized essay"},
+                "path": "/tmp/serialized-project",
             },
         ).get_json()
 
@@ -85,7 +99,7 @@ class ProjectRouteTests(unittest.TestCase):
             "/api/projects",
             json={
                 "name": "Invalid project",
-                "essay": {"title": "Invalid essay"},
+                "path": "/tmp/invalid-project",
                 "conversations": [
                     {"messages": [{"role": "invalid", "content": "Message"}]}
                 ],
@@ -104,20 +118,22 @@ class ProjectRouteTests(unittest.TestCase):
         client = self.app.test_client()
         payload = {
             "name": "Unique project",
-            "essay": {"title": "Unique essay"},
+            "path": "/tmp/unique-project",
         }
         self.assertEqual(client.post("/api/projects", json=payload).status_code, 201)
 
-        response = client.post("/api/projects", json=payload)
+        response = client.post(
+            "/api/projects",
+            json={**payload, "path": "/tmp/another-project"},
+        )
 
         self.assertEqual(response.status_code, 409)
         self.assertEqual(
             response.get_json(),
-            {"error": "A project with this name already exists."},
+            {"error": "A project with this name or path already exists."},
         )
         with self.app.app_context():
             self.assertEqual(Project.query.count(), 1)
-            self.assertEqual(Essay.query.count(), 1)
 
 
 if __name__ == "__main__":

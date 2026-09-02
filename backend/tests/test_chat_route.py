@@ -55,6 +55,26 @@ class ChatRouteTests(unittest.TestCase):
         self.assertEqual(self.service.request.system_prompt, "Be concise.")
         self.assertEqual(self.service.request.history[0]["content"], "Earlier question")
 
+    def test_builds_system_prompt_from_project_context(self):
+        response = self.client.post("/api/chat", json={
+            "connection_id": 4,
+            "provider": "openai",
+            "model": "gpt-test",
+            "message": "Help me outline this essay.",
+            "title": "Battery usage report",
+            "description": "Use an academic tone.",
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(
+            'The essay title is "Battery usage report".',
+            self.service.request.system_prompt,
+        )
+        self.assertIn(
+            "Follow these project instructions:\nUse an academic tone.",
+            self.service.request.system_prompt,
+        )
+
     def test_returns_service_error(self):
         self.service.error = LLMError("Unsupported chat provider: unknown.", 400)
 

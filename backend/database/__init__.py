@@ -4,7 +4,6 @@ from .extensions import admin, db, migrate
 from .models import (
     AuthMethod,
     Conversation,
-    Essay,
     Message,
     Project,
     Provider,
@@ -17,7 +16,6 @@ __all__ = [
     "migrate",
     "AuthMethod",
     "Conversation",
-    "Essay",
     "Message",
     "Project",
     "Provider",

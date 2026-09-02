@@ -1,15 +1,22 @@
 import { useEffect, useRef, useState } from "react";
 import cowriterPet from "../assets/icons/cowriter_pet.svg";
+import type { ProjectFilesystemService } from "../services/projectFilesystem";
 import type { Project } from "../types";
-import { NewChatIcon, PanelIcon, SearchIcon, SettingsIcon } from "./ui/Icons";
+import { ProjectFilesView } from "./projects/ProjectFilesView";
+import { BackIcon, NewChatIcon, PanelIcon, SearchIcon, SettingsIcon } from "./ui/Icons";
 
 interface SidebarProps {
   collapsed: boolean;
   projects: Project[];
+  isProjectsLoading: boolean;
+  projectsError: string | null;
   selectedProjectId: string | null;
+  activeProject: Project | null;
+  filesystemService: ProjectFilesystemService;
   settingsActive: boolean;
   onNewProject: () => void;
   onSelectProject: (projectId: string) => void;
+  onClearActiveProject: () => void;
   onOpenSettings: () => void;
   onToggleCollapsed: () => void;
 }
@@ -26,10 +33,15 @@ function projectTime(project: Project): string {
 export function Sidebar({
   collapsed,
   projects,
+  isProjectsLoading,
+  projectsError,
   selectedProjectId,
+  activeProject,
+  filesystemService,
   settingsActive,
   onNewProject,
   onSelectProject,
+  onClearActiveProject,
   onOpenSettings,
   onToggleCollapsed,
 }: SidebarProps) {
@@ -77,14 +89,30 @@ export function Sidebar({
           <button
             className="sidebar-icon-button rail-search"
             type="button"
-            aria-label="Search projects"
+            aria-label={activeProject ? "Show recent projects" : "Search projects"}
             onClick={() => {
+              if (activeProject) {
+                onClearActiveProject();
+              }
               onToggleCollapsed();
-              setSearchOpen(true);
+              setSearchOpen(!activeProject);
             }}
           >
-            <SearchIcon size={18} />
+            {activeProject ? <BackIcon size={18} /> : <SearchIcon size={18} />}
           </button>
+        ) : activeProject ? (
+          <div className="active-project-sidebar">
+            <button className="active-project-back" type="button" onClick={onClearActiveProject}>
+              <BackIcon size={14} />
+              <span>Recent projects</span>
+            </button>
+            <div className="active-project-heading">
+              <h2 title={activeProject.title}>{activeProject.title}</h2>
+              {activeProject.path && <p title={activeProject.path}>{activeProject.path}</p>}
+            </div>
+            <h3>Files</h3>
+            <ProjectFilesView project={activeProject} filesystemService={filesystemService} />
+          </div>
         ) : (
           <>
             <div className="sidebar-section-header">
@@ -114,20 +142,28 @@ export function Sidebar({
               </div>
             </div>
             <nav className="project-list" aria-label="Projects">
-              {visibleProjects.map((project) => (
-                <button
-                  className={`project-item ${project.id === selectedProjectId ? "active" : ""}`}
-                  key={project.id}
-                  type="button"
-                  title={project.title}
-                  onClick={() => onSelectProject(project.id)}
-                >
-                  <span className="project-dot" aria-hidden="true" />
-                  <span className="project-title">{project.title}</span>
-                  <span className="project-time">{projectTime(project)}</span>
-                </button>
-              ))}
-              {visibleProjects.length === 0 && <p className="project-list-empty">No matching projects</p>}
+              {isProjectsLoading ? (
+                <p className="project-list-empty">Loading projects...</p>
+              ) : projectsError ? (
+                <p className="project-list-empty">{projectsError}</p>
+              ) : (
+                <>
+                  {visibleProjects.map((project) => (
+                    <button
+                      className={`project-item ${project.id === selectedProjectId ? "active" : ""}`}
+                      key={project.id}
+                      type="button"
+                      title={project.title}
+                      onClick={() => onSelectProject(project.id)}
+                    >
+                      <span className="project-dot" aria-hidden="true" />
+                      <span className="project-title">{project.title}</span>
+                      <span className="project-time">{projectTime(project)}</span>
+                    </button>
+                  ))}
+                  {visibleProjects.length === 0 && <p className="project-list-empty">No matching projects</p>}
+                </>
+              )}
             </nav>
           </>
         )}

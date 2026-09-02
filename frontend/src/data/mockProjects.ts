@@ -6,6 +6,9 @@ export const mockProjects: Project[] = [
   {
     id: "project-modernism",
     title: "Modernism research paper",
+    path: null,
+    writingContext: null,
+    writingContent: "",
     createdAt: now,
     updatedAt: now,
     messages: [
@@ -27,6 +30,9 @@ export const mockProjects: Project[] = [
   {
     id: "project-history-essay",
     title: "History essay",
+    path: null,
+    writingContext: null,
+    writingContent: "",
     createdAt: now,
     updatedAt: now,
     messages: [
@@ -48,6 +54,9 @@ export const mockProjects: Project[] = [
   {
     id: "project-short-story",
     title: "Short story notes",
+    path: null,
+    writingContext: null,
+    writingContent: "",
     createdAt: now,
     updatedAt: now,
     messages: [
@@ -63,6 +72,9 @@ export const mockProjects: Project[] = [
   {
     id: "project-literature-review",
     title: "Literature review",
+    path: null,
+    writingContext: null,
+    writingContent: "",
     createdAt: now,
     updatedAt: now,
     messages: [],

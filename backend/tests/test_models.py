@@ -5,7 +5,7 @@ from flask import Flask
 from sqlalchemy.exc import IntegrityError
 
 from backend.database import db
-from backend.database.models import Conversation, Essay, Message, Project
+from backend.database.models import Conversation, Message, Project
 
 
 class ConversationMessageModelTests(unittest.TestCase):
@@ -36,7 +36,6 @@ class ConversationMessageModelTests(unittest.TestCase):
     def test_messages_are_ordered_and_deleted_with_conversation(self):
         with self.app.app_context():
             project = Project(name="Test project")
-            project.essay = Essay(title="Test essay")
             conversation = Conversation(project=project)
             created_at = datetime(2026, 8, 23, 10, 0, 0)
             conversation.messages.extend(
@@ -75,23 +74,26 @@ class ConversationMessageModelTests(unittest.TestCase):
                 0,
             )
 
-    def test_project_owns_one_essay_and_multiple_conversations(self):
+    def test_project_owns_multiple_conversations(self):
         with self.app.app_context():
             project = Project(
                 name="Relationship project",
-                essay=Essay(title="Relationship essay"),
                 conversations=[Conversation(), Conversation()],
             )
             db.session.add(project)
             db.session.commit()
 
-            self.assertEqual(project.essay.title, "Relationship essay")
             self.assertEqual(len(project.conversations), 2)
             self.assertTrue(
                 all(conversation.project is project for conversation in project.conversations)
             )
 
-            db.session.add(Essay(title="Duplicate essay", project_id=project.id))
+    def test_project_path_is_unique(self):
+        with self.app.app_context():
+            db.session.add(Project(name="First project", path="/tmp/project"))
+            db.session.commit()
+
+            db.session.add(Project(name="Second project", path="/tmp/project"))
             with self.assertRaises(IntegrityError):
                 db.session.commit()
             db.session.rollback()
@@ -100,7 +102,6 @@ class ConversationMessageModelTests(unittest.TestCase):
         with self.app.app_context():
             project = Project(
                 name="Cascade project",
-                essay=Essay(title="Cascade essay"),
                 conversations=[
                     Conversation(
                         messages=[Message(role="user", content="Delete me")],
@@ -111,7 +112,6 @@ class ConversationMessageModelTests(unittest.TestCase):
             db.session.commit()
 
             project_id = project.id
-            essay_id = project.essay.id
             conversation_id = project.conversations[0].id
             message_id = project.conversations[0].messages[0].id
             db.session.execute(
@@ -119,7 +119,6 @@ class ConversationMessageModelTests(unittest.TestCase):
             )
             db.session.commit()
 
-            self.assertIsNone(db.session.get(Essay, essay_id))
             self.assertIsNone(db.session.get(Conversation, conversation_id))
             self.assertIsNone(db.session.get(Message, message_id))
 

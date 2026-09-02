@@ -3,6 +3,10 @@ from collections.abc import Iterator
 from typing import Mapping, Protocol
 
 
+def format_chat_message(role: str, content: str) -> str:
+    return f"<|im_start|>{role}\n{content}<|im_end|>"
+
+
 class LLMError(Exception):
     def __init__(self, message: str, status_code: int = 400):
         super().__init__(message)
@@ -18,6 +22,23 @@ class ChatRequest:
     message: str
     system_prompt: str | None = None
     history: tuple[dict[str, str], ...] = ()
+
+    def model_messages(self) -> list[dict[str, str]]:
+        messages = [
+            {
+                "role": history_message["role"],
+                "content": format_chat_message(
+                    history_message["role"],
+                    history_message["content"],
+                ),
+            }
+            for history_message in self.history
+        ]
+        messages.append({
+            "role": "user",
+            "content": format_chat_message("user", self.message),
+        })
+        return messages
 
 
 @dataclass(frozen=True)

@@ -2,9 +2,11 @@ from flask import Blueprint, jsonify, request
 from sqlalchemy.exc import IntegrityError
 
 if __package__ and __package__.startswith("backend."):
-    from ..database import Conversation, Essay, Message, Project, db
+    from ..database import Conversation, Message, Project, db
+    from ..prompts import SystemPrompts
 else:
-    from database import Conversation, Essay, Message, Project, db
+    from database import Conversation, Message, Project, db
+    from prompts import SystemPrompts
 
 
 projects_bp = Blueprint(
@@ -13,6 +15,53 @@ projects_bp = Blueprint(
     url_prefix="/api/projects",
 )
 ALLOWED_MESSAGE_ROLES = {"system", "user", "assistant"}
+DESCRIPTION_OPTIONS = {
+    "tone": {"Academic", "Neutral", "Persuasive", "Analytical", "Conversational"},
+    "writing_style": {"Formal", "Clear", "Concise", "Descriptive", "Creative"},
+    "academic_level": {"MiddleSchool", "HighSchool", "Undergraduate", "Graduate"},
+    "language": {"Portuguese", "English"},
+    "essay_type": {"Argumentative", "Expository", "Descriptive", "Narrative", "Analytical"},
+}
+MAX_ADDITIONAL_INSTRUCTIONS_LENGTH = 110
+
+
+def parse_project_description(description):
+    if description is None:
+        return None
+    if not isinstance(description, dict):
+        raise ValueError("description must be an object or null.")
+
+    values = {}
+    for field_name, allowed_values in DESCRIPTION_OPTIONS.items():
+        value = description.get(field_name)
+        if value not in allowed_values:
+            raise ValueError(f"description.{field_name} is invalid.")
+        values[field_name] = value
+
+    additional_instructions = description.get("additional_instructions")
+    if additional_instructions is not None and not isinstance(additional_instructions, str):
+        raise ValueError("description.additional_instructions must be a string or null.")
+    if isinstance(additional_instructions, str):
+        additional_instructions = additional_instructions.strip() or None
+        if (
+            additional_instructions
+            and len(additional_instructions) > MAX_ADDITIONAL_INSTRUCTIONS_LENGTH
+        ):
+            raise ValueError(
+                f"description.additional_instructions must be {MAX_ADDITIONAL_INSTRUCTIONS_LENGTH} characters or fewer."
+            )
+
+    project_description = SystemPrompts.project_description(
+        tone=values["tone"],
+        writing_style=values["writing_style"],
+        academic_level=values["academic_level"],
+        language=values["language"],
+        essay_type=values["essay_type"],
+        additional_instructions=additional_instructions,
+    )
+    if len(project_description) > 255:
+        raise ValueError("description must be 255 characters or fewer.")
+    return project_description
 
 
 def parse_project_payload(payload):
@@ -21,8 +70,8 @@ def parse_project_payload(payload):
 
     name = payload.get("name")
     description = payload.get("description")
-    essay_payload = payload.get("essay")
     conversation_payloads = payload.get("conversations", [])
+    path = payload.get("path")
 
     if not isinstance(name, str) or not name.strip():
         raise ValueError("name is required.")
@@ -30,21 +79,16 @@ def parse_project_payload(payload):
     if len(name) > 100:
         raise ValueError("name must be 100 characters or fewer.")
 
-    if description is not None and not isinstance(description, str):
-        raise ValueError("description must be a string or null.")
-    if isinstance(description, str):
-        description = description.strip() or None
-        if description and len(description) > 255:
-            raise ValueError("description must be 255 characters or fewer.")
+    description = parse_project_description(description)
 
-    if not isinstance(essay_payload, dict):
-        raise ValueError("essay is required.")
-    essay_title = essay_payload.get("title")
-    if not isinstance(essay_title, str) or not essay_title.strip():
-        raise ValueError("essay.title is required.")
-    essay_title = essay_title.strip()
-    if len(essay_title) > 200:
-        raise ValueError("essay.title must be 200 characters or fewer.")
+    if path is not None and not isinstance(path, str):
+        raise ValueError("path must be a string or null.")
+    if isinstance(path, str):
+        path = path.strip() or None
+        if path and len(path) > 255:
+            raise ValueError("path must be 255 characters or fewer.")
+    if path is not None and Project.query.filter_by(path=path).first() is not None:
+        raise ValueError("A project with this path already exists.")
 
     if not isinstance(conversation_payloads, list):
         raise ValueError("conversations must be an array.")
@@ -75,7 +119,7 @@ def parse_project_payload(payload):
     return Project(
         name=name,
         description=description,
-        essay=Essay(title=essay_title),
+        path=path,
         conversations=conversations,
     )
 
@@ -85,6 +129,24 @@ def get_projects():
     projects = Project.query.order_by(Project.updated_at.desc(), Project.id.desc()).all()
     return jsonify([project.to_dict() for project in projects])
 
+
+@projects_bp.route("/<int:project_id>", methods=["GET"], strict_slashes=False)
+def get_project(project_id):
+    project = Project.query.get(project_id)
+    if not project:
+        return jsonify({"error": "Project not found."}), 404
+    return jsonify(project.to_dict())
+
+
+@projects_bp.route("/<int:project_id>", methods=["DELETE"], strict_slashes=False)
+def delete_project(project_id):
+    project = Project.query.get(project_id)
+    if not project:
+        return jsonify({"error": "Project not found."}), 404
+
+    db.session.delete(project)
+    db.session.commit()
+    return jsonify({"message": "Project deleted successfully."}), 200
 
 @projects_bp.route("", methods=["POST"], strict_slashes=False)
 def create_project():
@@ -98,6 +160,6 @@ def create_project():
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
-        return jsonify({"error": "A project with this name already exists."}), 409
+        return jsonify({"error": "A project with this name or path already exists."}), 409
 
     return jsonify(project.to_dict()), 201

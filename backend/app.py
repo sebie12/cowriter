@@ -17,7 +17,6 @@ if __package__:
     from .database.models import (
         AuthMethod,
         Conversation,
-        Essay,
         Message,
         Project,
         Provider,
@@ -43,7 +42,6 @@ else:
     from database.models import (
         AuthMethod,
         Conversation,
-        Essay,
         Message,
         Project,
         Provider,
@@ -113,7 +111,6 @@ admin.add_view(ProviderModelView(Provider, db))
 admin.add_view(AuthMethodModelView(AuthMethod, db))
 admin.add_view(ModelView(ProviderConnection, db))
 admin.add_view(ModelView(Project, db))
-admin.add_view(ModelView(Essay, db))
 admin.add_view(ModelView(Conversation, db))
 admin.add_view(ModelView(Message, db))
 

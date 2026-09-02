@@ -90,8 +90,7 @@ class OpenAIProvider:
         messages = []
         if request.system_prompt:
             messages.append({"role": "system", "content": request.system_prompt})
-        messages.extend(request.history)
-        messages.append({"role": "user", "content": request.message})
+        messages.extend(request.model_messages())
 
         try:
             with self.client_factory(api_key=api_key, timeout=120.0, max_retries=0) as client:

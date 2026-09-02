@@ -54,6 +54,18 @@ export function RefreshIcon(props: IconProps) {
   return <Icon {...props}><path d="M13 5.5A5.5 5.5 0 1 0 13.2 10" stroke="currentColor" strokeLinecap="round" /><path d="M10.5 5.5H13V3" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" /></Icon>;
 }
 
+export function BackIcon(props: IconProps) {
+  return <Icon {...props}><path d="m7 3-5 5 5 5M2.5 8H14" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></Icon>;
+}
+
+export function FolderIcon(props: IconProps) {
+  return <Icon {...props}><path d="M1.5 4.5A1.5 1.5 0 0 1 3 3h3l1.5 1.5H13A1.5 1.5 0 0 1 14.5 6v6A1.5 1.5 0 0 1 13 13.5H3A1.5 1.5 0 0 1 1.5 12V4.5Z" stroke="currentColor" strokeLinejoin="round" /></Icon>;
+}
+
+export function FileIcon(props: IconProps) {
+  return <Icon {...props}><path d="M4 1.5h5l3 3V14H4V1.5Z" stroke="currentColor" strokeLinejoin="round" /><path d="M9 1.5v3h3" stroke="currentColor" strokeLinejoin="round" /></Icon>;
+}
+
 export function SendIcon(props: IconProps) {
   return <Icon {...props}><path d="M8 14V2M3.5 6.5 8 2l4.5 4.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></Icon>;
 }

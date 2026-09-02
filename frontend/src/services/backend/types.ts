@@ -1,4 +1,4 @@
-import type { ChatRequest } from "../../types";
+import type { ChatRequest, CreateProjectInput, Project } from "../../types";
 import type {
   ConnectProviderInput,
   OAuthConnectionStatus,
@@ -13,6 +13,8 @@ export type ChatStreamEvent =
   | { type: "done" };
 
 export interface CowriterApi {
+  listProjects(signal?: AbortSignal): Promise<Project[]>;
+  createProject(input: CreateProjectInput, signal?: AbortSignal): Promise<Project>;
   streamChat(
     input: ChatRequest,
     onEvent: (event: ChatStreamEvent) => void,

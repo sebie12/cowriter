@@ -21,7 +21,8 @@ def parse_chat_payload(payload):
     provider = payload.get("provider")
     model = payload.get("model")
     message = payload.get("message")
-    system_prompt = payload.get("system_prompt", SystemPrompts.chat())
+    title = payload.get("title")
+    description = payload.get("description")
     history = payload.get("history", [])
 
     if isinstance(connection_id, bool) or not isinstance(connection_id, int) or connection_id < 1:
@@ -32,6 +33,17 @@ def parse_chat_payload(payload):
         raise LLMError("model is required.")
     if not isinstance(message, str) or not message.strip():
         raise LLMError("message is required.")
+    if title is not None and not isinstance(title, str):
+        raise LLMError("title must be a string.")
+    if description is not None and not isinstance(description, str):
+        raise LLMError("description must be a string.")
+    system_prompt = payload.get(
+        "system_prompt",
+        SystemPrompts.chat(
+            title=title.strip() if title else None,
+            description=description.strip() if description else None,
+        ),
+    )
     if system_prompt is not None and not isinstance(system_prompt, str):
         raise LLMError("system_prompt must be a string.")
     if not isinstance(history, list):
