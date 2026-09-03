@@ -1,13 +1,23 @@
 """Provider-agnostic language model services."""
 
-from .contracts import ChatRequest, ChatResult, LLMError, LLMProvider, ProviderConfig
-from .service import ChatService
+from .contracts import (
+    ChatRequest,
+    ChatResult,
+    LLMError,
+    LLMProvider,
+    ModelTurn,
+    ProviderConfig,
+    ToolCall,
+    ToolDefinition,
+)
 
 __all__ = [
     "ChatRequest",
     "ChatResult",
-    "ChatService",
     "LLMError",
     "LLMProvider",
+    "ModelTurn",
     "ProviderConfig",
+    "ToolCall",
+    "ToolDefinition",
 ]

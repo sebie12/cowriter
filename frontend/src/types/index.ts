@@ -43,6 +43,7 @@ export interface ProjectSourceFile {
 }
 
 export interface ChatRequest {
+  projectId: string;
   connectionId: number;
   provider: string;
   model: string;

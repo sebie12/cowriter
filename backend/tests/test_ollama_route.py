@@ -9,7 +9,8 @@ from backend.blueprints.provider_connections import provider_connections_bp
 from backend.blueprints.providers import providers_bp
 from backend.database import AuthMethod, Provider, ProviderConnection, db
 from backend.database.catalog import ensure_provider_catalog
-from backend.llm import ChatService, ProviderConfig
+from backend.llm import ProviderConfig
+from backend.services import ChatService
 
 
 class OllamaRouteTests(unittest.TestCase):

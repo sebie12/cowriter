@@ -214,11 +214,19 @@ export const cowriterApi: CowriterApi = {
     return normalizeProject(project);
   },
 
+  async openProject(projectId, signal) {
+    await request(`/api/projects/${encodeURIComponent(projectId)}`, {
+      method: "PATCH",
+      signal,
+    });
+  },
+
   async streamChat(input, onEvent, signal) {
     const response = await request("/api/chat", {
       method: "POST",
       signal,
       body: JSON.stringify({
+        project_id: Number(input.projectId),
         connection_id: input.connectionId,
         provider: input.provider,
         model: input.model,

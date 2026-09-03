@@ -1,7 +1,8 @@
 import unittest
 from types import SimpleNamespace
 
-from backend.llm import ChatRequest, ChatResult, ChatService, LLMError
+from backend.llm import ChatRequest, ChatResult, LLMError, ModelTurn, ToolCall
+from backend.services import ChatService
 
 
 class FakeCredentialStore:
@@ -26,6 +27,8 @@ class FakeProvider:
         self.chat_call = None
         self.stream_chat_call = None
         self.models_config = None
+        self.complete_chat_calls = []
+        self.turns = []
 
     def chat(self, request, config):
         self.chat_call = (request, config)
@@ -35,6 +38,10 @@ class FakeProvider:
         self.stream_chat_call = (request, config)
         return iter(["streamed ", "answer"])
 
+    def complete_chat(self, request, config, messages, tools):
+        self.complete_chat_calls.append((request, config, list(messages), tools))
+        return self.turns.pop(0)
+
     def list_models(self, config):
         self.models_config = config
         return ["gpt-test"]
@@ -43,6 +50,32 @@ class FakeProvider:
 class FakeOllamaProvider(FakeProvider):
     provider_ids = {"ollama"}
     credential_fields = ()
+
+
+class FakeMCPClient:
+    def __init__(self):
+        self.calls = []
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, _exception_type, _exception, _traceback):
+        return False
+
+    async def list_tools(self):
+        return [SimpleNamespace(
+            name="read_file",
+            description="Read a project file.",
+            input_schema={"type": "object", "properties": {"path": {"type": "string"}}},
+        )]
+
+    async def call_tool(self, name, arguments):
+        self.calls.append((name, arguments))
+        return SimpleNamespace(
+            structured_content={"content": "project text"},
+            content=[],
+            is_error=False,
+        )
 
 
 class ChatServiceTests(unittest.TestCase):
@@ -86,6 +119,34 @@ class ChatServiceTests(unittest.TestCase):
         self.assertEqual(chunks, ["streamed ", "answer"])
         self.assertEqual(self.provider.stream_chat_call[0], request)
         self.assertEqual(self.provider.stream_chat_call[1].credentials, {"api_key": "secret"})
+
+    def test_feeds_mcp_tools_and_results_to_provider(self):
+        mcp_client = FakeMCPClient()
+        self.provider.turns = [
+            ModelTurn("", (ToolCall("call-1", "read_file", {"path": "draft.txt"}),)),
+            ModelTurn("Answer from the project file."),
+        ]
+        service = ChatService(
+            connection_lookup=lambda _connection_id: self.connection,
+            credential_store=self.credentials,
+            providers=[self.provider],
+            project_lookup=lambda _project_id: SimpleNamespace(path="/tmp/project"),
+            mcp_client_factory=lambda _project_path: mcp_client,
+        )
+
+        chunks = list(service.stream_chat(
+            ChatRequest(7, "openai", "gpt-test", "Read it", project_id=3)
+        ))
+
+        self.assertEqual(chunks, ["Answer from the project file."])
+        self.assertEqual(mcp_client.calls, [("read_file", {"path": "draft.txt"})])
+        self.assertEqual(self.provider.complete_chat_calls[0][3][0].name, "read_file")
+        self.assertEqual(self.provider.complete_chat_calls[1][2][-1], {
+            "role": "tool",
+            "tool_call_id": "call-1",
+            "tool_name": "read_file",
+            "content": '{"content": "project text"}',
+        })
 
     def test_rejects_connection_provider_mismatch(self):
         request = ChatRequest(7, "ollama", "model", "Hello")

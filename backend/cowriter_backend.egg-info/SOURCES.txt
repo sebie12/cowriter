@@ -36,6 +36,13 @@ migrations/script.py.mako
 migrations/versions/86d1e2f922f7_move_conversations_to_projects.py
 migrations/versions/__init__.py
 migrations/versions/b007dbced275_create_initial_schema.py
+migrations/versions/c74b6ac31e2d_add_project_path.py
+migrations/versions/eb00b2f222d0_remove_essays_and_add_project_language.py
+prompts/System.py
+prompts/__init__.py
+prompts/chat.py
+prompts/research.py
+prompts/writing.py
 tests/test_chat_route.py
 tests/test_chat_service.py
 tests/test_models.py

@@ -1,4 +1,5 @@
 import hashlib
+import json
 from collections.abc import Iterator
 from typing import Any
 
@@ -6,10 +7,26 @@ import openai
 
 if __package__ and __package__.startswith("backend."):
     from ..connections import ProviderConnectionError, ProviderConnectionResult, ProviderConnector
-    from ...llm import ChatRequest, ChatResult, LLMError, ProviderConfig
+    from ...llm import (
+        ChatRequest,
+        ChatResult,
+        LLMError,
+        ModelTurn,
+        ProviderConfig,
+        ToolCall,
+        ToolDefinition,
+    )
 else:
     from auth.connections import ProviderConnectionError, ProviderConnectionResult, ProviderConnector
-    from llm import ChatRequest, ChatResult, LLMError, ProviderConfig
+    from llm import (
+        ChatRequest,
+        ChatResult,
+        LLMError,
+        ModelTurn,
+        ProviderConfig,
+        ToolCall,
+        ToolDefinition,
+    )
 
 
 class OpenAIProvider:
@@ -121,6 +138,59 @@ class OpenAIProvider:
 
         if not has_content:
             raise LLMError("OpenAI returned an empty response.", 502)
+
+    def complete_chat(
+        self,
+        request: ChatRequest,
+        config: ProviderConfig,
+        messages: list[dict[str, Any]],
+        tools: tuple[ToolDefinition, ...],
+    ) -> ModelTurn:
+        api_key = self._api_key(config)
+        openai_messages = []
+        for message in messages:
+            converted = dict(message)
+            converted.pop("tool_name", None)
+            openai_messages.append(converted)
+        try:
+            with self.client_factory(api_key=api_key, timeout=120.0, max_retries=0) as client:
+                response = client.chat.completions.create(
+                    model=request.model,
+                    messages=openai_messages,
+                    tools=[tool.model_payload() for tool in tools],
+                    stream=False,
+                )
+        except openai.AuthenticationError as error:
+            raise LLMError("OpenAI credentials are invalid.", 401) from error
+        except openai.NotFoundError as error:
+            raise LLMError("The selected OpenAI model was not found.", 404) from error
+        except openai.BadRequestError as error:
+            raise LLMError("OpenAI rejected the selected model or chat request.", 400) from error
+        except openai.RateLimitError as error:
+            raise LLMError("OpenAI rate limit exceeded. Try again later.", 429) from error
+        except openai.APIConnectionError as error:
+            raise LLMError("Could not connect to OpenAI right now.", 502) from error
+        except openai.APIError as error:
+            raise LLMError("OpenAI could not complete the chat request.", 502) from error
+
+        if not response.choices:
+            raise LLMError("OpenAI returned an empty response.", 502)
+
+        message = response.choices[0].message
+        tool_calls = []
+        for call in message.tool_calls or ():
+            try:
+                arguments = json.loads(call.function.arguments)
+            except (TypeError, json.JSONDecodeError) as error:
+                raise LLMError("OpenAI returned invalid tool arguments.", 502) from error
+            if not isinstance(arguments, dict):
+                raise LLMError("OpenAI returned invalid tool arguments.", 502)
+            tool_calls.append(ToolCall(call.id, call.function.name, arguments))
+
+        content = message.content or ""
+        if not content.strip() and not tool_calls:
+            raise LLMError("OpenAI returned an empty response.", 502)
+        return ModelTurn(content=content, tool_calls=tuple(tool_calls))
 
     def _api_key(self, config: ProviderConfig) -> str:
         api_key = config.credentials.get("api_key")

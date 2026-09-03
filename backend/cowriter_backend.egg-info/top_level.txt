@@ -5,3 +5,4 @@ blueprints
 database
 llm
 migrations
+prompts

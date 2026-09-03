@@ -22,7 +22,7 @@ if __package__:
         Provider,
         ProviderConnection,
     )
-    from .llm import ChatService
+    from .services import ChatService
     from .auth.credentials import CredentialStore
 else:
     try:
@@ -47,7 +47,7 @@ else:
         Provider,
         ProviderConnection,
     )
-    from llm import ChatService
+    from services import ChatService
     from auth.credentials import CredentialStore
 
 from flask_admin.contrib.sqla import ModelView
@@ -68,6 +68,7 @@ migrate.init_app(app, db, compare_type=True, render_as_batch=True)
 app.extensions["chat_service"] = ChatService(
     connection_lookup=lambda connection_id: db.session.get(ProviderConnection, connection_id),
     credential_store=CredentialStore(),
+    project_lookup=lambda project_id: db.session.get(Project, project_id),
 )
 
 # ===== BLUEPRINTS =====
@@ -97,7 +98,7 @@ def add_cors_headers(response):
     if origin in allowed_origins:
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Access-Control-Allow-Headers"] = "Content-Type"
-        response.headers["Access-Control-Allow-Methods"] = "GET,POST,DELETE,OPTIONS"
+        response.headers["Access-Control-Allow-Methods"] = "GET,POST,PATCH,DELETE,OPTIONS"
         response.headers.add("Vary", "Origin")
     return response
 

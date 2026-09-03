@@ -21,6 +21,7 @@ def parse_chat_payload(payload):
     provider = payload.get("provider")
     model = payload.get("model")
     message = payload.get("message")
+    project_id = payload.get("project_id")
     title = payload.get("title")
     description = payload.get("description")
     history = payload.get("history", [])
@@ -33,6 +34,10 @@ def parse_chat_payload(payload):
         raise LLMError("model is required.")
     if not isinstance(message, str) or not message.strip():
         raise LLMError("message is required.")
+    if project_id is not None and (
+        isinstance(project_id, bool) or not isinstance(project_id, int) or project_id < 1
+    ):
+        raise LLMError("project_id must be a positive integer.")
     if title is not None and not isinstance(title, str):
         raise LLMError("title must be a string.")
     if description is not None and not isinstance(description, str):
@@ -67,6 +72,7 @@ def parse_chat_payload(payload):
         message=message.strip(),
         system_prompt=normalized_system_prompt,
         history=tuple(normalized_history),
+        project_id=project_id,
     )
 
 

@@ -1,4 +1,5 @@
 import unittest
+from datetime import datetime
 
 from flask import Flask
 
@@ -134,6 +135,30 @@ class ProjectRouteTests(unittest.TestCase):
         )
         with self.app.app_context():
             self.assertEqual(Project.query.count(), 1)
+
+    def test_patch_updates_project_opened_at(self):
+        with self.app.app_context():
+            project = Project(
+                name="Opened project",
+                opened_at=datetime(2000, 1, 1),
+            )
+            db.session.add(project)
+            db.session.commit()
+            project_id = project.id
+
+        response = self.app.test_client().patch(f"/api/projects/{project_id}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertGreater(
+            datetime.fromisoformat(response.get_json()["opened_at"]),
+            datetime(2000, 1, 1),
+        )
+
+    def test_patch_rejects_unknown_project(self):
+        response = self.app.test_client().patch("/api/projects/999")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.get_json(), {"error": "Project not found."})
 
 
 if __name__ == "__main__":

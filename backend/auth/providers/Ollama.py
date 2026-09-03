@@ -1,4 +1,5 @@
 import ipaddress
+import json
 import os
 from collections.abc import Iterator
 from typing import Any
@@ -8,10 +9,26 @@ import ollama
 
 if __package__ and __package__.startswith("backend."):
     from ..connections import ProviderConnectionError, ProviderConnectionResult, ProviderConnector
-    from ...llm import ChatRequest, ChatResult, LLMError, ProviderConfig
+    from ...llm import (
+        ChatRequest,
+        ChatResult,
+        LLMError,
+        ModelTurn,
+        ProviderConfig,
+        ToolCall,
+        ToolDefinition,
+    )
 else:
     from auth.connections import ProviderConnectionError, ProviderConnectionResult, ProviderConnector
-    from llm import ChatRequest, ChatResult, LLMError, ProviderConfig
+    from llm import (
+        ChatRequest,
+        ChatResult,
+        LLMError,
+        ModelTurn,
+        ProviderConfig,
+        ToolCall,
+        ToolDefinition,
+    )
 
 DEFAULT_OLLAMA_SERVER_URL = "http://127.0.0.1:11434"
 
@@ -198,6 +215,71 @@ class OllamaProvider:
 
         if not has_content:
             raise LLMError("Ollama returned an empty response.", 502)
+
+    def complete_chat(
+        self,
+        request: ChatRequest,
+        config: ProviderConfig,
+        messages: list[dict[str, Any]],
+        tools: tuple[ToolDefinition, ...],
+    ) -> ModelTurn:
+        if not config.endpoint_url:
+            raise LLMError("Ollama server is not configured.", 409)
+        try:
+            normalized_url = normalize_ollama_server_url(config.endpoint_url)
+        except ProviderConnectionError as error:
+            raise LLMError(error.message, error.status_code) from error
+
+        ollama_messages = []
+        for message in messages:
+            converted = dict(message)
+            if converted.get("tool_calls"):
+                converted["tool_calls"] = [
+                    {
+                        "function": {
+                            "name": call["function"]["name"],
+                            "arguments": json.loads(call["function"]["arguments"]),
+                        }
+                    }
+                    for call in converted["tool_calls"]
+                ]
+            converted.pop("tool_call_id", None)
+            ollama_messages.append(converted)
+
+        try:
+            with self.client_factory(
+                host=normalized_url,
+                timeout=120.0,
+                follow_redirects=False,
+                trust_env=False,
+            ) as client:
+                response = client.chat(
+                    model=request.model,
+                    messages=ollama_messages,
+                    tools=[tool.model_payload() for tool in tools],
+                    stream=False,
+                )
+        except ollama.ResponseError as error:
+            if error.status_code == 404:
+                raise LLMError("The selected Ollama model is not installed.", 404) from error
+            raise LLMError("Ollama could not complete the chat request.", 502) from error
+        except ConnectionError as error:
+            raise LLMError("Could not connect to Ollama at the configured server URL.", 502) from error
+        except Exception as error:
+            raise LLMError("Could not communicate with Ollama.", 502) from error
+
+        tool_calls = tuple(
+            ToolCall(
+                id=f"ollama-{index}",
+                name=call.function.name,
+                arguments=dict(call.function.arguments),
+            )
+            for index, call in enumerate(response.message.tool_calls or ())
+        )
+        content = response.message.content or ""
+        if not content.strip() and not tool_calls:
+            raise LLMError("Ollama returned an empty response.", 502)
+        return ModelTurn(content=content, tool_calls=tool_calls)
 
 
 class OllamaConnector(ProviderConnector):

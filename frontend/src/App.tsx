@@ -301,6 +301,7 @@ export default function App({ api }: { api: CowriterApi }) {
     try {
       await api.streamChat(
         {
+          projectId: activeProject.id,
           connectionId: activeConnection.id,
           provider: activeConnection.providerId,
           model: selectedModelId,
@@ -378,6 +379,17 @@ export default function App({ api }: { api: CowriterApi }) {
     }
   };
 
+  const handleSelectProject = (projectId: string) => {
+    setSelectedProjectId(projectId);
+    setIsSettingsOpen(false);
+    setIsProjectModalOpen(false);
+    setError(null);
+
+    void api.openProject(projectId).catch((openError) => {
+      setError(openError instanceof Error ? openError.message : "Could not update the project's last-opened time.");
+    });
+  };
+
   const handleStopMessage = () => {
     chatControllerRef.current?.abort();
   };
@@ -414,12 +426,7 @@ export default function App({ api }: { api: CowriterApi }) {
           setIsProjectModalOpen(true);
           setError(null);
         }}
-        onSelectProject={(projectId) => {
-          setSelectedProjectId(projectId);
-          setIsSettingsOpen(false);
-          setIsProjectModalOpen(false);
-          setError(null);
-        }}
+        onSelectProject={handleSelectProject}
         onClearActiveProject={() => {
           setSelectedProjectId(null);
           setError(null);

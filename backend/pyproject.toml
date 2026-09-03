@@ -16,12 +16,13 @@ dependencies = [
     "google-auth-oauthlib>=1.4.0",
     "google-genai>=2.19.0",
     "keyring>=25.7.0",
+    "mcp[cli]>=2.1.1",
     "ollama>=0.6.1",
     "openai>=1.109.0",
 ]
 
 [tool.setuptools]
-py-modules = ["app", "admin_views"]
+py-modules = ["app", "admin_views", "config", "mcp_client", "mcp_server"]
 packages = [
     "auth",
     "auth.providers",
@@ -31,6 +32,9 @@ packages = [
     "migrations",
     "migrations.versions",
     "prompts",
+    "resources",
+    "services",
+    "tools",
 ]
 
 [tool.setuptools.package-data]

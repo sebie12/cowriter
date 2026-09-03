@@ -107,6 +107,11 @@ class Project(db.Model):
         default=db.func.current_timestamp()
     )
 
+    opened_at = db.Column(
+        db.DateTime,
+        default=db.func.current_timestamp()
+    )
+
     updated_at = db.Column(
         db.DateTime,
         default=db.func.current_timestamp(),
@@ -127,6 +132,7 @@ class Project(db.Model):
             "path": self.path,
             "created_at": _isoformat(self.created_at),
             "updated_at": _isoformat(self.updated_at),
+            "opened_at": _isoformat(self.opened_at),
         }
 
 class Conversation(db.Model):

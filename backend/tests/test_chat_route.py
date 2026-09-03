@@ -30,6 +30,7 @@ class ChatRouteTests(unittest.TestCase):
     def test_passes_provider_independent_request_to_service(self):
         response = self.client.post("/api/chat", json={
             "connection_id": 4,
+            "project_id": 9,
             "provider": "openai",
             "model": "gpt-test",
             "message": " Latest question ",
@@ -51,6 +52,7 @@ class ChatRouteTests(unittest.TestCase):
             ],
         )
         self.assertEqual(self.service.request.provider, "openai")
+        self.assertEqual(self.service.request.project_id, 9)
         self.assertEqual(self.service.request.message, "Latest question")
         self.assertEqual(self.service.request.system_prompt, "Be concise.")
         self.assertEqual(self.service.request.history[0]["content"], "Earlier question")

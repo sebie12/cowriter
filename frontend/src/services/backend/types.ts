@@ -15,6 +15,7 @@ export type ChatStreamEvent =
 export interface CowriterApi {
   listProjects(signal?: AbortSignal): Promise<Project[]>;
   createProject(input: CreateProjectInput, signal?: AbortSignal): Promise<Project>;
+  openProject(projectId: string, signal?: AbortSignal): Promise<void>;
   streamChat(
     input: ChatRequest,
     onEvent: (event: ChatStreamEvent) => void,

@@ -11,5 +11,6 @@ Requires-Dist: google-auth>=2.56.3
 Requires-Dist: google-auth-oauthlib>=1.4.0
 Requires-Dist: google-genai>=2.19.0
 Requires-Dist: keyring>=25.7.0
+Requires-Dist: mcp[cli]>=2.1.1
 Requires-Dist: ollama>=0.6.1
 Requires-Dist: openai>=1.109.0

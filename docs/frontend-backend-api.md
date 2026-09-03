@@ -37,6 +37,7 @@ Request:
 
 ```json
 {
+  "project_id": 12,
   "connection_id": 4,
   "provider": "openai",
   "model": "gpt-4.1",
@@ -70,6 +71,8 @@ An error before streaming starts is a non-2xx JSON response:
 ```
 
 Streaming: required, using NDJSON over the Fetch response body. SSE and WebSocket support are not required.
+
+When the selected project has a filesystem path, the backend starts the bundled MCP server for that project, sends its `read_file` and `list_files` definitions to the model, executes requested tools, and returns only the model's final text through the existing NDJSON events. Tool-enabled turns are buffered until tool execution finishes. Paths accepted by the MCP tools are relative to the selected project root and cannot escape it.
 
 Required: yes.
 
@@ -380,7 +383,7 @@ These coding-agent or runtime-management features are not used by the Cowriter f
 ### Coding execution and repository context
 
 - Shell, bash, PowerShell, persistent terminal, subprocess, and process-tree execution.
-- Filesystem read/write/edit, grep/glob, diff, repository file references, and native open-path behavior.
+- Filesystem write/edit, grep/glob, diff, repository file references, and native open-path behavior. The backend does provide project-scoped read-only MCP tools for reading and listing files.
 - Workspace directory picking, directory listing/creation, and coding workspace roots.
 - Repository instructions, skills, coding deliverables, produced files, and session file mentions.
 - Sandbox, E2B, Landlock, local execution policy, and permission presets for tool execution.

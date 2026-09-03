@@ -1,6 +1,4 @@
 import re
-
-
 class SystemPrompts:
     @staticmethod
     def project_description(

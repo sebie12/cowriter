@@ -4,7 +4,7 @@ import ollama
 
 from backend.auth.connections import ProviderConnectionError
 from backend.auth.providers.Ollama import OllamaProvider, normalize_ollama_server_url
-from backend.llm import ChatRequest, LLMError, ProviderConfig
+from backend.llm import ChatRequest, LLMError, ProviderConfig, ToolDefinition
 
 
 class FakeClient:
@@ -35,6 +35,8 @@ class FakeClient:
         self.chat_call = options
         if self.request_error:
             raise self.request_error
+        if not options.get("stream"):
+            return self.chat_response
         if isinstance(self.chat_response, list):
             return iter(self.chat_response)
         return iter([self.chat_response])
@@ -165,6 +167,39 @@ class OllamaProviderTests(unittest.TestCase):
         ))
 
         self.assertEqual(chunks, ["Test", " response"])
+
+    def test_completes_tool_turn_with_discovered_tools(self):
+        clients = []
+        response = ollama.ChatResponse(message=ollama.Message(
+            role="assistant",
+            content=None,
+            tool_calls=[ollama.Message.ToolCall(
+                function=ollama.Message.ToolCall.Function(
+                    name="read_file",
+                    arguments={"path": "draft.txt"},
+                )
+            )],
+        ))
+
+        def client_factory(**options):
+            client = FakeClient(chat_response=response, **options)
+            clients.append(client)
+            return client
+
+        turn = OllamaProvider(client_factory).complete_chat(
+            ChatRequest(1, "ollama", "qwen3:8b", "Read it"),
+            ProviderConfig(endpoint_url="http://127.0.0.1:11434"),
+            [{"role": "user", "content": "Read it"}],
+            (ToolDefinition("read_file", "Read a file", {"type": "object"}),),
+        )
+
+        self.assertEqual(turn.tool_calls[0].name, "read_file")
+        self.assertEqual(turn.tool_calls[0].arguments, {"path": "draft.txt"})
+        self.assertEqual(
+            clients[0].chat_call["tools"][0]["function"]["name"],
+            "read_file",
+        )
+        self.assertFalse(clients[0].chat_call["stream"])
 
     def test_rejects_empty_chat_response(self):
         response = ollama.ChatResponse(

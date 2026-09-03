@@ -4,9 +4,11 @@ from sqlalchemy.exc import IntegrityError
 if __package__ and __package__.startswith("backend."):
     from ..database import Conversation, Message, Project, db
     from ..prompts import SystemPrompts
+    from ..services.project_service import ProjectService
 else:
     from database import Conversation, Message, Project, db
     from prompts import SystemPrompts
+    from services.project_service import ProjectService
 
 
 projects_bp = Blueprint(
@@ -123,16 +125,15 @@ def parse_project_payload(payload):
         conversations=conversations,
     )
 
-
 @projects_bp.route("", methods=["GET"], strict_slashes=False)
 def get_projects():
-    projects = Project.query.order_by(Project.updated_at.desc(), Project.id.desc()).all()
+    projects = ProjectService().get_all_projects()
     return jsonify([project.to_dict() for project in projects])
 
 
 @projects_bp.route("/<int:project_id>", methods=["GET"], strict_slashes=False)
 def get_project(project_id):
-    project = Project.query.get(project_id)
+    project = ProjectService().get_project_by_id(project_id)
     if not project:
         return jsonify({"error": "Project not found."}), 404
     return jsonify(project.to_dict())
@@ -140,12 +141,11 @@ def get_project(project_id):
 
 @projects_bp.route("/<int:project_id>", methods=["DELETE"], strict_slashes=False)
 def delete_project(project_id):
-    project = Project.query.get(project_id)
+    project = ProjectService().get_project_by_id(project_id)
     if not project:
         return jsonify({"error": "Project not found."}), 404
 
-    db.session.delete(project)
-    db.session.commit()
+    ProjectService().delete_project(project_id)
     return jsonify({"message": "Project deleted successfully."}), 200
 
 @projects_bp.route("", methods=["POST"], strict_slashes=False)
@@ -156,10 +156,16 @@ def create_project():
         return jsonify({"error": str(error)}), 400
 
     try:
-        db.session.add(project)
-        db.session.commit()
+        ProjectService().create_project(project)
     except IntegrityError:
-        db.session.rollback()
         return jsonify({"error": "A project with this name or path already exists."}), 409
 
     return jsonify(project.to_dict()), 201
+
+@projects_bp.route("/<int:project_id>", methods=["PATCH"], strict_slashes=False)
+def update_project(project_id):
+    project = ProjectService().project_opened(project_id)
+    if not project:
+        return jsonify({"error": "Project not found."}), 404
+
+    return jsonify(project.to_dict()), 200

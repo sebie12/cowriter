@@ -2,7 +2,7 @@ import unittest
 from types import SimpleNamespace
 
 from backend.auth.providers.Openai import OpenAIProvider
-from backend.llm import ChatRequest, LLMError, ProviderConfig
+from backend.llm import ChatRequest, LLMError, ProviderConfig, ToolDefinition
 
 
 class FakeCompletions:
@@ -11,6 +11,8 @@ class FakeCompletions:
 
     def create(self, **options):
         self.client.chat_call = options
+        if not options.get("stream"):
+            return self.client.completion_response
         return self.client.chat_response
 
 
@@ -24,7 +26,7 @@ class FakeModels:
 
 
 class FakeOpenAIClient:
-    def __init__(self, chat_content="Test response", chat_chunks=None, **options):
+    def __init__(self, chat_content="Test response", chat_chunks=None, completion_response=None, **options):
         self.options = options
         self.chat_call = None
         self.models_called = False
@@ -38,6 +40,7 @@ class FakeOpenAIClient:
             SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content=content))])
             for content in chunks
         ])
+        self.completion_response = completion_response
         self.models = FakeModels(self)
         self.chat = SimpleNamespace(completions=FakeCompletions(self))
 
@@ -127,6 +130,42 @@ class OpenAIProviderTests(unittest.TestCase):
         ))
 
         self.assertEqual(chunks, ["Test", " response"])
+
+    def test_completes_tool_turn_with_discovered_tools(self):
+        clients = []
+        completion_response = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(
+            content=None,
+            tool_calls=[SimpleNamespace(
+                id="call-1",
+                function=SimpleNamespace(name="read_file", arguments='{"path":"draft.txt"}'),
+            )],
+        ))])
+
+        def client_factory(**options):
+            client = FakeOpenAIClient(completion_response=completion_response, **options)
+            clients.append(client)
+            return client
+
+        turn = OpenAIProvider(client_factory).complete_chat(
+            ChatRequest(1, "openai", "gpt-test", "Read it"),
+            ProviderConfig(credentials={"api_key": "test-key"}),
+            [{
+                "role": "tool",
+                "tool_call_id": "previous-call",
+                "tool_name": "read_file",
+                "content": "Previous result",
+            }],
+            (ToolDefinition("read_file", "Read a file", {"type": "object"}),),
+        )
+
+        self.assertEqual(turn.tool_calls[0].name, "read_file")
+        self.assertEqual(turn.tool_calls[0].arguments, {"path": "draft.txt"})
+        self.assertEqual(
+            clients[0].chat_call["tools"][0]["function"]["name"],
+            "read_file",
+        )
+        self.assertNotIn("tool_name", clients[0].chat_call["messages"][0])
+        self.assertFalse(clients[0].chat_call["stream"])
 
     def test_rejects_empty_response(self):
         provider = OpenAIProvider(lambda **options: FakeOpenAIClient(chat_content=None, **options))

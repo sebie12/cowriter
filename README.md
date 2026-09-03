@@ -150,8 +150,9 @@ frontend/src/
 - New projects are local-only and are not persisted.
 - Chat responses come from the configured OpenAI or local Ollama model through `POST /api/chat`.
 - The current chat transport supports text messages only; attachment controls are omitted until the backend supports them.
-- No Anthropic, LangChain, LangGraph, MCP, embeddings, or RAG integration is included.
+- Projects with a filesystem path expose read-only `read_file` and `list_files` tools to the selected model through the bundled MCP server.
+- No Anthropic, LangChain, LangGraph, embeddings, or RAG integration is included.
 
 ## Future Direction
 
-The structure is intended to evolve toward projects with documents, sources, citations, conversations, and writing sessions. The Flask layer is reserved for future LLM orchestration, RAG, MCP servers/tools, document processing, embeddings, agent workflows, and evaluation/observability.
+The structure is intended to evolve toward projects with documents, sources, citations, conversations, and writing sessions. The Flask layer owns LLM and MCP orchestration and is reserved for future RAG, document processing, embeddings, agent workflows, and evaluation/observability.
