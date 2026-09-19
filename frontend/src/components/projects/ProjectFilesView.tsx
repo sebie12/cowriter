@@ -53,7 +53,7 @@ export function ProjectFilesView({ project, filesystemService }: ProjectFilesVie
     return <p className="project-files-state">No project directory configured.</p>;
   }
   if (status === "loading") {
-    return <p className="project-files-state">Loading files...</p>;
+    return <p className="project-files-state" role="status">Loading files...</p>;
   }
   if (status === "error") {
     return (
@@ -66,7 +66,7 @@ export function ProjectFilesView({ project, filesystemService }: ProjectFilesVie
     );
   }
   if (entries.length === 0) {
-    return <p className="project-files-state">No files in this project yet.</p>;
+    return <p className="project-files-state" role="status">No files in this project yet.</p>;
   }
 
   return (

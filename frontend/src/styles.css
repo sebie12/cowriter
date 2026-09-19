@@ -39,7 +39,7 @@
 }
 
 :root {
-  color-scheme: dark;
+  color-scheme: light dark;
   font-family: "SN Pro", ui-sans-serif, system-ui, sans-serif;
   color: #e7e7e9;
   background: #171719;
@@ -55,8 +55,8 @@
   --ds-border-soft: #28282d;
   --ds-text: #e7e7e9;
   --ds-text-2: #b2b2ba;
-  --ds-text-3: #7c7c86;
-  --ds-focus: #787884;
+  --ds-text-3: #92929c;
+  --ds-focus: #9bbcff;
   --ds-danger: #e2a0a0;
   --ds-radius-md: 8px;
   --ds-radius-lg: 12px;
@@ -93,8 +93,19 @@ button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 1px solid var(--ds-focus);
+  outline: 2px solid var(--ds-focus);
   outline-offset: 2px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .app-shell {
@@ -354,7 +365,7 @@ textarea:focus-visible {
 }
 
 .project-time {
-  color: #676771;
+  color: var(--ds-text-3);
   font-size: 10.5px;
 }
 
@@ -411,7 +422,7 @@ textarea:focus-visible {
 .active-project-heading p {
   overflow: hidden;
   margin: 5px 0 0;
-  color: #696972;
+  color: var(--ds-text-3);
   font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -466,7 +477,7 @@ textarea:focus-visible {
 .project-files-state,
 .project-files-error {
   margin: 8px 7px;
-  color: #777780;
+  color: var(--ds-text-3);
   font-size: 11.5px;
   line-height: 1.45;
 }
@@ -571,7 +582,7 @@ textarea:focus-visible {
   overflow: hidden;
   min-width: 0;
   margin-left: 12px;
-  color: #686871;
+  color: var(--ds-text-3);
   font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -652,7 +663,7 @@ textarea:focus-visible {
   align-items: center;
   justify-content: center;
   gap: 11px;
-  margin-bottom: 25px;
+  margin: 0 0 25px;
   color: #dddde1;
   font-size: clamp(22px, 2.2vw, 29px);
   font-weight: 480;
@@ -754,7 +765,7 @@ textarea:focus-visible {
   justify-content: space-between;
   padding: 0 14px;
   border-bottom: 1px solid #2c2c32;
-  color: #777780;
+  color: var(--ds-text-3);
   font-size: 10px;
   letter-spacing: 0.02em;
 }
@@ -878,6 +889,7 @@ textarea:focus-visible {
   color: #eeeef0;
 }
 
+.source-refresh-button:disabled,
 .source-save-button:disabled {
   cursor: not-allowed;
   opacity: 0.5;
@@ -982,7 +994,7 @@ textarea:focus-visible {
   align-items: center;
   gap: 6px;
   margin-top: 7px;
-  color: #696972;
+  color: var(--ds-text-3);
 }
 
 .message-actions.quiet {
@@ -1036,6 +1048,7 @@ textarea:focus-visible {
 .markdown-content h3,
 .markdown-content p,
 .markdown-content ul,
+.markdown-content ol,
 .markdown-content blockquote,
 .markdown-content pre {
   margin-top: 0;
@@ -1056,6 +1069,7 @@ textarea:focus-visible {
 
 .markdown-content p,
 .markdown-content ul,
+.markdown-content ol,
 .markdown-content blockquote,
 .markdown-content pre {
   margin-bottom: 15px;
@@ -1065,7 +1079,8 @@ textarea:focus-visible {
   margin-bottom: 0;
 }
 
-.markdown-content ul {
+.markdown-content ul,
+.markdown-content ol {
   padding-left: 22px;
 }
 
@@ -1177,7 +1192,8 @@ textarea:focus-visible {
 }
 
 .composer:focus-within {
-  border-color: #484850;
+  border-color: var(--ds-focus);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ds-focus) 28%, transparent), 0 14px 42px rgb(0 0 0 / 28%);
 }
 
 .composer textarea {
@@ -1195,19 +1211,18 @@ textarea:focus-visible {
 }
 
 .composer textarea::placeholder {
-  color: #777780;
+  color: var(--ds-text-3);
 }
 
 .composer-toolbar {
   display: flex;
   min-height: 44px;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 8px;
   padding: 4px 8px 8px 14px;
 }
 
-.composer-leading,
 .composer-trailing {
   display: flex;
   align-items: center;
@@ -1215,11 +1230,6 @@ textarea:focus-visible {
 
 .composer-trailing {
   gap: 5px;
-}
-
-.writing-mode {
-  color: #777780;
-  font-size: 11px;
 }
 
 .send-button {
@@ -1334,6 +1344,10 @@ textarea:focus-visible {
   gap: 8px;
 }
 
+.model-menu-back {
+  grid-template-columns: 14px minmax(0, 1fr);
+}
+
 .model-menu-option {
   grid-template-columns: minmax(0, 1fr) 18px;
   gap: 8px;
@@ -1368,7 +1382,7 @@ textarea:focus-visible {
 
 .model-option-copy small {
   overflow: hidden;
-  color: #767680;
+  color: var(--ds-text-3);
   font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1705,7 +1719,7 @@ textarea:focus-visible {
 }
 
 .project-directory-unavailable {
-  color: #777780;
+  color: var(--ds-text-3);
   font-family: inherit;
 }
 
@@ -1771,7 +1785,7 @@ textarea:focus-visible {
 
 .eyebrow {
   margin: 0;
-  color: #777781;
+  color: var(--ds-text-3);
   font-size: 10px;
   font-weight: 650;
   letter-spacing: 0.055em;
@@ -1836,7 +1850,7 @@ textarea:focus-visible {
   display: flex;
   gap: 12px;
   margin: 18px 0 10px;
-  color: #74747e;
+  color: var(--ds-text-3);
   font-size: 10.5px;
 }
 
@@ -2045,7 +2059,7 @@ textarea:focus-visible {
 }
 
 .auth-step-heading > span {
-  color: #72727c;
+  color: var(--ds-text-3);
   font-size: 10px;
   font-weight: 650;
   letter-spacing: 0.05em;
@@ -2121,7 +2135,7 @@ textarea:focus-visible {
 .auth-form label small,
 .auth-field-note,
 .auth-field-error {
-  color: #797983;
+  color: var(--ds-text-3);
   font-size: 10.5px;
 }
 
@@ -2223,32 +2237,14 @@ textarea:focus-visible {
     min-width: 0;
   }
 
-  .sidebar,
-  .sidebar:not(.collapsed),
   .sidebar.collapsed {
     flex-basis: 56px;
     width: 56px;
   }
 
-  .sidebar:not(.collapsed) .sidebar-brand,
-  .sidebar:not(.collapsed) .sidebar-section-header,
-  .sidebar:not(.collapsed) .project-list,
-  .sidebar:not(.collapsed) .settings-trigger span,
-  .sidebar:not(.collapsed) .new-project-button span {
-    display: none;
-  }
-
-  .sidebar:not(.collapsed) .sidebar-logo-row {
-    justify-content: center;
-    padding-inline: 8px;
-  }
-
-  .sidebar:not(.collapsed) .new-project-button,
-  .sidebar:not(.collapsed) .settings-trigger {
-    width: 38px;
-    margin-inline: auto;
-    padding: 0;
-    justify-content: center;
+  .sidebar:not(.collapsed) {
+    width: min(280px, calc(100vw - 48px));
+    flex-basis: min(280px, calc(100vw - 48px));
   }
 
   .conversation {
@@ -2372,6 +2368,265 @@ textarea:focus-visible {
   }
 }
 
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    color: #242428;
+    background: #f5f5f7;
+    --ds-bg: #f5f5f7;
+    --ds-sidebar: #eeeef1;
+    --ds-elevated: #ffffff;
+    --ds-hover: #e3e3e8;
+    --ds-active: #d9d9e0;
+    --ds-border: #c8c8d0;
+    --ds-border-soft: #d8d8de;
+    --ds-text: #242428;
+    --ds-text-2: #494952;
+    --ds-text-3: #5f5f69;
+    --ds-focus: #076bd8;
+    --ds-danger: #a12c35;
+  }
+
+  .brand-mark img,
+  .rail-brand img,
+  .hero-mark img,
+  .provider-logo {
+    filter: none;
+  }
+
+  .new-project-button,
+  .project-files-error button,
+  .source-editor-bar,
+  .source-editor-bar select,
+  .source-refresh-button,
+  .source-save-button,
+  .writing-document,
+  .composer,
+  .model-selector-menu,
+  .project-modal,
+  .settings-panel,
+  .provider-auth-panel,
+  .project-context-fields,
+  .active-provider-setting,
+  .providers-empty-state,
+  .provider-list-item,
+  .auth-method-option,
+  .oauth-browser-visual {
+    border-color: var(--ds-border);
+    background: var(--ds-elevated);
+  }
+
+  .source-editor,
+  .source-code-mirror .cm-editor,
+  .project-name-field input,
+  .project-context-fields select,
+  .project-context-fields textarea,
+  .active-provider-setting select,
+  .auth-form input {
+    background: var(--ds-bg);
+    color: var(--ds-text);
+  }
+
+  .settings-header {
+    background: linear-gradient(var(--ds-elevated) 60%, rgb(255 255 255 / 0%));
+  }
+
+  .composer textarea {
+    color: var(--ds-text);
+  }
+
+  .composer textarea::placeholder {
+    color: var(--ds-text-3);
+  }
+
+  .settings-sidebar,
+  .provider-logo-placeholder {
+    border-color: var(--ds-border-soft);
+    background: #f2f2f4;
+  }
+
+  .project-item:hover,
+  .project-files-list li:hover,
+  .settings-sidebar button:hover,
+  .model-menu-cell:hover,
+  .model-menu-option:hover,
+  .provider-list-item.selected,
+  .auth-method-option:has(input:checked) {
+    background: var(--ds-hover);
+  }
+
+  .project-item:hover,
+  .project-files-list li:hover,
+  .settings-sidebar button:hover,
+  .model-selector-trigger:hover,
+  .model-menu-cell:hover,
+  .model-menu-option:hover,
+  .message-actions button:hover,
+  .settings-close-button:hover,
+  .source-refresh-button:hover,
+  .source-save-button:hover:not(:disabled) {
+    color: var(--ds-text);
+  }
+
+  .settings-close-button:hover,
+  .source-refresh-button:hover,
+  .source-save-button:hover:not(:disabled) {
+    background: var(--ds-hover);
+  }
+
+  .markdown-content blockquote {
+    border-color: var(--ds-text-3);
+    color: var(--ds-text-2);
+  }
+
+  .project-item.active,
+  .settings-sidebar button.active {
+    background: var(--ds-active);
+  }
+
+  .brand-name,
+  .project-item.active,
+  .active-project-heading h2,
+  .workspace-title-row h1,
+  .hero-headline,
+  .project-empty-state h2,
+  .latex-editor .tiptap,
+  .message-bubble,
+  .assistant-message,
+  .markdown-content h1,
+  .markdown-content h2,
+  .markdown-content h3,
+  .markdown-content code,
+  .settings-sidebar h1,
+  .project-modal-header h1,
+  .project-name-field,
+  .project-context-fields label,
+  .project-context-fields legend,
+  .project-directory-field h2,
+  .settings-content-header h2,
+  .provider-auth-header h2,
+  .active-provider-setting label,
+  .provider-list-item-copy h3 {
+    color: var(--ds-text);
+  }
+
+  .project-item,
+  .project-files-list li,
+  .new-project-button,
+  .project-files-error button,
+  .writing-document-bar span:first-child,
+  .settings-sidebar button,
+  .settings-close-button,
+  .project-directory-field > button,
+  .project-directory-path,
+  .project-directory-unavailable,
+  .project-modal-cancel,
+  .source-refresh-button,
+  .source-save-button,
+  .provider-secondary-button,
+  .auth-form label,
+  .model-selector-trigger,
+  .model-menu-cell,
+  .model-menu-option {
+    color: var(--ds-text-2);
+  }
+
+  .project-context-fields > p,
+  .project-directory-field > div p,
+  .settings-content-header p:last-child,
+  .active-provider-setting p,
+  .provider-list-item-copy p,
+  .provider-status,
+  .auth-step-heading p,
+  .auth-method-option small,
+  .oauth-security-note,
+  .model-menu-value,
+  .typing-indicator,
+  .message-actions button {
+    color: var(--ds-text-3);
+  }
+
+  .message-bubble,
+  .markdown-content code,
+  .markdown-content pre,
+  .project-directory-path,
+  .project-directory-unavailable {
+    background: #e9e9ee;
+  }
+
+  .project-modal-continue,
+  .provider-primary-button,
+  .send-button {
+    border-color: #242428;
+    background: #242428;
+    color: #ffffff;
+  }
+
+  .new-project-button:hover,
+  .project-modal-continue:hover:not(:disabled),
+  .provider-primary-button:hover {
+    background: #35353b;
+    color: #ffffff;
+  }
+
+  .settings-mask {
+    background: rgb(35 35 40 / 30%);
+  }
+
+  .error-banner,
+  .source-editor-error,
+  .settings-error {
+    border-color: #d7a2a6;
+    background: #fff0f1;
+    color: #84232c;
+  }
+
+  .source-code-mirror .cm-gutters {
+    border-color: var(--ds-border-soft);
+    background: #eeeef1;
+    color: #656570;
+  }
+}
+
+@media (max-width: 720px) {
+  .settings-stage.provider-open .settings-panel {
+    visibility: hidden;
+    pointer-events: none;
+  }
+}
+
+.sidebar-search input:focus-visible,
+.source-editor-bar select:focus-visible,
+.active-provider-setting select:focus-visible,
+.auth-form input:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
+}
+
+.latex-editor .tiptap:focus-visible,
+.source-code-mirror .cm-editor.cm-focused {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: -2px;
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --ds-border: currentColor;
+    --ds-border-soft: color-mix(in srgb, currentColor 55%, transparent);
+    --ds-text-3: var(--ds-text-2);
+  }
+}
+
+@media (forced-colors: active) {
+  * {
+    forced-color-adjust: auto;
+  }
+
+  .hero-glow {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sidebar,
   .provider-auth-panel,
@@ -2384,5 +2639,9 @@ textarea:focus-visible {
   .streaming-caret,
   .oauth-spinner {
     animation: none;
+  }
+
+  .message-actions.quiet {
+    transition: none;
   }
 }

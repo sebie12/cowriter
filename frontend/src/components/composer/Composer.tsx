@@ -17,6 +17,7 @@ interface ComposerProps {
   onSelectModel: (id: string) => void;
   onSend: (message: string) => void;
   onStop: () => void;
+  onOpenSettings: () => void;
 }
 
 export function Composer({
@@ -33,6 +34,7 @@ export function Composer({
   onSelectModel,
   onSend,
   onStop,
+  onOpenSettings,
 }: ComposerProps) {
   const [value, setValue] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -58,7 +60,7 @@ export function Composer({
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === "Enter" && !event.shiftKey) {
+    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault();
       send();
     }
@@ -83,9 +85,6 @@ export function Composer({
           onKeyDown={handleKeyDown}
         />
         <div className="composer-toolbar">
-          <div className="composer-leading">
-            <span className="writing-mode">Writing</span>
-          </div>
           <div className="composer-trailing">
             <ModelSelector
               providers={providers}
@@ -95,6 +94,7 @@ export function Composer({
               isLoading={isModelsLoading}
               error={modelsError}
               disabled={isSending}
+              onOpenSettings={onOpenSettings}
               onSelectProvider={onSelectProvider}
               onSelectModel={onSelectModel}
             />

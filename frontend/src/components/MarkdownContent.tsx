@@ -4,7 +4,7 @@ type Block =
   | { type: "code"; content: string }
   | { type: "heading"; level: 1 | 2 | 3; content: string }
   | { type: "quote"; content: string }
-  | { type: "list"; items: string[] }
+  | { type: "list"; items: string[]; ordered: boolean; start?: number }
   | { type: "paragraph"; content: string };
 
 function parseBlocks(content: string): Block[] {
@@ -51,11 +51,14 @@ function parseBlocks(content: string): Block[] {
 
     if (/^[-*]\s+/.test(line) || /^\d+\.\s+/.test(line)) {
       const items: string[] = [];
-      while (index < lines.length && (/^[-*]\s+/.test(lines[index]) || /^\d+\.\s+/.test(lines[index]))) {
-        items.push(lines[index].replace(/^([-*]|\d+\.)\s+/, ""));
+      const ordered = /^\d+\.\s+/.test(line);
+      const itemPattern = ordered ? /^\d+\.\s+/ : /^[-*]\s+/;
+      const start = ordered ? Number.parseInt(line, 10) : undefined;
+      while (index < lines.length && itemPattern.test(lines[index])) {
+        items.push(lines[index].replace(itemPattern, ""));
         index += 1;
       }
-      blocks.push({ type: "list", items });
+      blocks.push({ type: "list", items, ordered, start });
       continue;
     }
 
@@ -103,12 +106,13 @@ export function MarkdownContent({ content }: { content: string }) {
         }
 
         if (block.type === "list") {
+          const ListTag = block.ordered ? "ol" : "ul";
           return (
-            <ul key={index}>
+            <ListTag key={index} start={block.ordered ? block.start : undefined}>
               {block.items.map((item, itemIndex) => (
                 <li key={`${item}-${itemIndex}`}>{renderInlineCode(item)}</li>
               ))}
-            </ul>
+            </ListTag>
           );
         }
 

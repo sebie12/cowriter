@@ -35,7 +35,7 @@ export function WritingEditor({ content, onChange }: WritingEditorProps) {
         bulletList: false,
         code: false,
         codeBlock: {
-          enableTabIndentation: true,
+          enableTabIndentation: false,
           exitOnArrowDown: false,
           exitOnArrowUp: false,
           exitOnTripleEnter: false,

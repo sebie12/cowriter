@@ -70,6 +70,8 @@ export function ServerUrlStep({ isConnecting, initialServerUrl, onBack, onSubmit
         <input
           autoFocus
           type="url"
+          aria-invalid={validationError ? true : undefined}
+          aria-errormessage={validationError ? "server-url-error" : undefined}
           value={serverUrl}
           placeholder={DEFAULT_OLLAMA_SERVER_URL}
           disabled={isConnecting}
@@ -80,7 +82,7 @@ export function ServerUrlStep({ isConnecting, initialServerUrl, onBack, onSubmit
           }}
         />
       </label>
-      {validationError && <p className="auth-field-error" role="alert">{validationError}</p>}
+      {validationError && <p id="server-url-error" className="auth-field-error" role="alert">{validationError}</p>}
       <p className="auth-field-note">Cowriter checks the Ollama server through its backend. No API key or other credential is sent.</p>
 
       <label>

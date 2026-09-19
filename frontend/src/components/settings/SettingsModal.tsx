@@ -5,6 +5,7 @@ import { ProviderAuthPanel } from "../providers/ProviderAuthPanel";
 import { ProvidersSettings } from "../providers/ProvidersSettings";
 import { CloseIcon } from "../ui/Icons";
 import { SettingsSidebar, type SettingsSection } from "./SettingsSidebar";
+import { useDialogFocus } from "../../hooks/useDialogFocus";
 
 interface SettingsModalProps {
   providerState: UseProvidersState;
@@ -24,6 +25,8 @@ export function SettingsModal({
   const [selectedSection, setSelectedSection] = useState<SettingsSection>("model-providers");
   const [editingProviderId, setEditingProviderId] = useState<string | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const providerTriggerRef = useRef<HTMLElement | null>(null);
   const {
     providers,
     connections,
@@ -45,6 +48,7 @@ export function SettingsModal({
     cancelConnection();
     clearActionError();
     setEditingProviderId(null);
+    requestAnimationFrame(() => providerTriggerRef.current?.focus());
   };
 
   const closeSettings = () => {
@@ -52,9 +56,7 @@ export function SettingsModal({
     onClose();
   };
 
-  useEffect(() => {
-    closeButtonRef.current?.focus();
-  }, []);
+  useDialogFocus(dialogRef, closeButtonRef);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -74,15 +76,23 @@ export function SettingsModal({
   }, [editingProviderId]);
 
   const selectProvider = (provider: ProviderSummary) => {
+    providerTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     clearActionError();
     setEditingProviderId(provider.id);
   };
 
   return (
     <div className="settings-overlay">
-      <button className="settings-mask" type="button" aria-label="Close settings" onClick={closeSettings} />
-      <div className={`settings-stage ${selectedProvider ? "provider-open" : ""}`}>
-        <section className="settings-panel" role="dialog" aria-modal={selectedProvider ? undefined : true} aria-labelledby="settings-title">
+      <div className="settings-mask" aria-hidden="true" onMouseDown={closeSettings} />
+      <div
+        ref={dialogRef}
+        className={`settings-stage ${selectedProvider ? "provider-open" : ""}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-title"
+        tabIndex={-1}
+      >
+        <section className="settings-panel">
           <div className="settings-layout">
             <SettingsSidebar selectedSection={selectedSection} onSelectSection={setSelectedSection} />
             <div className="settings-content">

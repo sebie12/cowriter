@@ -141,11 +141,11 @@ export function Sidebar({
                 )}
               </div>
             </div>
-            <nav className="project-list" aria-label="Projects">
+            <nav className="project-list" aria-label="Projects" aria-busy={isProjectsLoading}>
               {isProjectsLoading ? (
-                <p className="project-list-empty">Loading projects...</p>
+                <p className="project-list-empty" role="status">Loading projects...</p>
               ) : projectsError ? (
-                <p className="project-list-empty">{projectsError}</p>
+                <p className="project-list-empty" role="alert">{projectsError}</p>
               ) : (
                 <>
                   {visibleProjects.map((project) => (
@@ -154,6 +154,7 @@ export function Sidebar({
                       key={project.id}
                       type="button"
                       title={project.title}
+                      aria-current={project.id === selectedProjectId ? "page" : undefined}
                       onClick={() => onSelectProject(project.id)}
                     >
                       <span className="project-dot" aria-hidden="true" />
@@ -161,7 +162,7 @@ export function Sidebar({
                       <span className="project-time">{projectTime(project)}</span>
                     </button>
                   ))}
-                  {visibleProjects.length === 0 && <p className="project-list-empty">No matching projects</p>}
+                  {visibleProjects.length === 0 && <p className="project-list-empty" role="status">No matching projects</p>}
                 </>
               )}
             </nav>

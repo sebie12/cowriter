@@ -109,6 +109,8 @@ With Flask running, start the desktop app in another terminal:
 
 ```bash
 npm run dev
+
+WEBKIT_DISABLE_DMABUF_RENDERER=1 npm run tauri dev
 ```
 
 Tauri starts the Vite frontend automatically and opens the desktop window.

@@ -98,6 +98,11 @@ export default function App({ api }: { api: CowriterApi }) {
   const isSendingRef = useRef(false);
   const chatControllerRef = useRef<AbortController | null>(null);
   const providerState = useProviders(api);
+  const collapseSidebarOnNarrowScreen = () => {
+    if (window.matchMedia("(max-width: 720px)").matches) {
+      setSidebarCollapsed(true);
+    }
+  };
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === selectedProjectId) ?? null,
@@ -369,6 +374,7 @@ export default function App({ api }: { api: CowriterApi }) {
     setProjects((currentProjects) => [project, ...currentProjects]);
     setProjectsError(null);
     setSelectedProjectId(project.id);
+    collapseSidebarOnNarrowScreen();
     setIsSettingsOpen(false);
     setError(null);
 
@@ -381,6 +387,7 @@ export default function App({ api }: { api: CowriterApi }) {
 
   const handleSelectProject = (projectId: string) => {
     setSelectedProjectId(projectId);
+    collapseSidebarOnNarrowScreen();
     setIsSettingsOpen(false);
     setIsProjectModalOpen(false);
     setError(null);
@@ -472,6 +479,12 @@ export default function App({ api }: { api: CowriterApi }) {
         onSendMessage={handleSendMessage}
         onStopMessage={handleStopMessage}
         onWritingContentChange={handleWritingContentChange}
+        onOpenSettings={() => {
+          setIsSettingsOpen(true);
+          setIsProjectModalOpen(false);
+          setPendingProjectMessage(null);
+          setError(null);
+        }}
       />
       {isProjectModalOpen && (
         <ProjectModal

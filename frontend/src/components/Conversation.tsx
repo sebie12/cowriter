@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import type { Message } from "../types";
 import { MessageItem } from "./conversation/MessageItem";
 
@@ -7,36 +6,7 @@ interface ConversationProps {
   isSending: boolean;
 }
 
-const DEFAULT_ZOOM = 100;
-const MIN_ZOOM = 75;
-const MAX_ZOOM = 200;
-const ZOOM_STEP = 10;
-
 export function Conversation({ messages, isSending }: ConversationProps) {
-  const [zoom, setZoom] = useState(DEFAULT_ZOOM);
-
-  useEffect(() => {
-    const handleZoomShortcut = (event: KeyboardEvent) => {
-      if ((!event.ctrlKey && !event.metaKey) || event.altKey) {
-        return;
-      }
-
-      if (event.key === "+" || event.key === "=") {
-        event.preventDefault();
-        setZoom((currentZoom) => Math.min(currentZoom + ZOOM_STEP, MAX_ZOOM));
-      } else if (event.key === "-") {
-        event.preventDefault();
-        setZoom((currentZoom) => Math.max(currentZoom - ZOOM_STEP, MIN_ZOOM));
-      } else if (event.key === "0") {
-        event.preventDefault();
-        setZoom(DEFAULT_ZOOM);
-      }
-    };
-
-    window.addEventListener("keydown", handleZoomShortcut);
-    return () => window.removeEventListener("keydown", handleZoomShortcut);
-  }, []);
-
   if (messages.length === 0 && !isSending) {
     return (
       <div className="project-empty-state">
@@ -51,7 +21,6 @@ export function Conversation({ messages, isSending }: ConversationProps) {
       className="conversation"
       aria-label="Conversation"
       aria-busy={isSending}
-      style={{ fontSize: `${zoom}%` }}
     >
       {messages.map((message) => <MessageItem key={message.id} message={message} />)}
     </section>

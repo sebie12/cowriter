@@ -49,7 +49,7 @@ export function ProvidersSettings({
           <h2 id="providers-settings-title">Model Providers</h2>
           <p>Connect the providers you want Cowriter to use.</p>
         </div>
-        <button className="provider-secondary-button" type="button" disabled={isLoading || isRefreshing} onClick={onRefresh}>
+        <button className="provider-secondary-button" type="button" disabled={isLoading || isRefreshing} aria-busy={isRefreshing} onClick={onRefresh}>
           {isRefreshing ? "Refreshing..." : "Refresh"}
         </button>
       </div>
@@ -63,7 +63,7 @@ export function ProvidersSettings({
       <div className="active-provider-setting">
         <div>
           <label htmlFor="active-provider">Active chat provider</label>
-          <p>Choose which connected provider Cowriter uses for chat.</p>
+          <p>Messages, project context, and conversation history are sent to the provider you choose.</p>
         </div>
         <select
           id="active-provider"

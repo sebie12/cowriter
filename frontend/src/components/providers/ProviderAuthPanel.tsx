@@ -61,13 +61,13 @@ export function ProviderAuthPanel({
   };
 
   return (
-    <aside className="provider-auth-panel" role="dialog" aria-modal="true" aria-labelledby="provider-auth-title">
+    <aside className="provider-auth-panel" aria-labelledby="provider-auth-title">
       <header className="provider-auth-header">
         <div>
           <p className="eyebrow">Provider connection</p>
           <h2 id="provider-auth-title">{provider.connection ? "Configure" : "Connect"} {provider.name}</h2>
         </div>
-        <button className="settings-close-button" type="button" onClick={onClose} aria-label={`Close ${provider.name} connection panel`}>
+        <button autoFocus className="settings-close-button" type="button" onClick={onClose} aria-label={`Close ${provider.name} connection panel`}>
           <CloseIcon />
         </button>
       </header>

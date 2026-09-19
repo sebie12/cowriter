@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import type { ProjectFilesystemService } from "../../services/projectFilesystem";
 import type { CreateProjectInput } from "../../types";
+import { useDialogFocus } from "../../hooks/useDialogFocus";
 import { CloseIcon } from "../ui/Icons";
 import {
   DEFAULT_PROJECT_CONTEXT,
@@ -30,6 +31,7 @@ export function ProjectModal({
   const [error, setError] = useState<string | null>(null);
   const [isSelectingDirectory, setIsSelectingDirectory] = useState(false);
   const nameInputRef = useRef<HTMLInputElement | null>(null);
+  const dialogRef = useRef<HTMLElement | null>(null);
   const submissionInProgressRef = useRef(false);
   const submitting = status === "submitting";
 
@@ -39,9 +41,7 @@ export function ProjectModal({
     }
   };
 
-  useEffect(() => {
-    nameInputRef.current?.focus();
-  }, []);
+  useDialogFocus(dialogRef, nameInputRef);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -105,8 +105,8 @@ export function ProjectModal({
 
   return (
     <div className="settings-overlay">
-      <button className="settings-mask" type="button" aria-label="Close project creation" onClick={closeModal} disabled={submitting} />
-      <section className="project-modal" role="dialog" aria-modal="true" aria-labelledby="project-modal-title">
+      <div className="settings-mask" aria-hidden="true" onMouseDown={closeModal} />
+      <section ref={dialogRef} className="project-modal" role="dialog" aria-modal="true" aria-labelledby="project-modal-title" tabIndex={-1}>
         <header className="project-modal-header">
           <div>
             <p className="eyebrow">New project</p>
@@ -124,9 +124,10 @@ export function ProjectModal({
               ref={nameInputRef}
               value={name}
               maxLength={100}
-              disabled={submitting}
+              readOnly={submitting}
               placeholder="Research Essay"
               aria-invalid={status === "error" && !name.trim() ? true : undefined}
+              aria-errormessage={status === "error" && !name.trim() ? "project-modal-error" : undefined}
               onChange={(event) => {
                 setName(event.target.value);
                 if (status === "error") {
@@ -156,11 +157,16 @@ export function ProjectModal({
             )}
           </section>
 
-          {error && <p className="project-modal-error" role="alert">{error}</p>}
+          {error && <p id="project-modal-error" className="project-modal-error" role="alert">{error}</p>}
 
           <footer className="project-modal-actions">
             <button className="project-modal-cancel" type="button" disabled={submitting} onClick={closeModal}>Cancel</button>
-            <button className="project-modal-continue" type="submit" disabled={submitting || !name.trim()}>
+            <button
+              className="project-modal-continue"
+              type="submit"
+              disabled={!name.trim()}
+              aria-disabled={submitting || !name.trim()}
+            >
               {submitting ? "Creating..." : status === "success" ? "Created" : "Continue"}
             </button>
           </footer>

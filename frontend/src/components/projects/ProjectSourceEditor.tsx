@@ -29,7 +29,17 @@ export function ProjectSourceEditor({ project, filesystemService }: ProjectSourc
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reloadVersion, setReloadVersion] = useState(0);
+  const [darkAppearance, setDarkAppearance] = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);
   const selectedPathRef = useRef<string | null>(null);
+  const contentRef = useRef(content);
+  contentRef.current = content;
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const updateAppearance = () => setDarkAppearance(mediaQuery.matches);
+    mediaQuery.addEventListener("change", updateAppearance);
+    return () => mediaQuery.removeEventListener("change", updateAppearance);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -101,23 +111,46 @@ export function ProjectSourceEditor({ project, filesystemService }: ProjectSourc
     };
   }, [filesystemService, project.id, project.path, selectedPath]);
 
-  const save = async () => {
+  const save = async (): Promise<boolean> => {
     const pathToSave = selectedPath;
-    if (!pathToSave || content === savedContent || isSaving) {
-      return;
+    if (!pathToSave || isSaving) {
+      return false;
     }
+    if (content === savedContent) {
+      return true;
+    }
+    const contentToSave = content;
     setIsSaving(true);
     setError(null);
     try {
-      await filesystemService.writeSourceFile(project, pathToSave, content);
+      await filesystemService.writeSourceFile(project, pathToSave, contentToSave);
       if (selectedPathRef.current === pathToSave) {
-        setSavedContent(content);
+        setSavedContent(contentToSave);
       }
+      return contentRef.current === contentToSave;
     } catch (saveError) {
       setError(errorMessage(saveError, "Could not save the LaTeX file."));
+      return false;
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const selectFile = async (nextPath: string) => {
+    if (nextPath === selectedPath) {
+      return;
+    }
+    if (content !== savedContent && !(await save())) {
+      return;
+    }
+    setSelectedPath(nextPath);
+  };
+
+  const refreshFiles = async () => {
+    if (content !== savedContent && !(await save())) {
+      return;
+    }
+    setReloadVersion((version) => version + 1);
   };
 
   if (!filesystemService.directorySelectionAvailable) {
@@ -144,7 +177,7 @@ export function ProjectSourceEditor({ project, filesystemService }: ProjectSourc
           <select
             value={selectedPath ?? ""}
             disabled={files.length === 0 || isLoading || isSaving}
-            onChange={(event) => setSelectedPath(event.target.value)}
+            onChange={(event) => void selectFile(event.target.value)}
           >
             {files.length === 0 && <option value="">No .tex files</option>}
             {files.map((file) => (
@@ -153,11 +186,12 @@ export function ProjectSourceEditor({ project, filesystemService }: ProjectSourc
           </select>
         </label>
         <div className="source-editor-actions">
-          <span>{content !== savedContent ? "Unsaved changes" : selectedPath ? "Saved" : ""}</span>
+          <span role="status" aria-live="polite">{isSaving ? "Saving..." : content !== savedContent ? "Unsaved changes" : selectedPath ? "Saved" : ""}</span>
           <button
             type="button"
             className="source-refresh-button"
-            onClick={() => setReloadVersion((version) => version + 1)}
+            disabled={isLoading || isSaving}
+            onClick={() => void refreshFiles()}
             aria-label="Refresh source files"
           >
             <RefreshIcon size={14} />
@@ -174,13 +208,14 @@ export function ProjectSourceEditor({ project, filesystemService }: ProjectSourc
       </div>
       {error && <div className="source-editor-error" role="alert">{error}</div>}
       {isLoading ? (
-        <p className="source-editor-state">Loading source...</p>
+        <p className="source-editor-state" role="status">Loading source...</p>
       ) : selectedPath ? (
         <CodeMirror
           className="source-code-mirror"
           value={content}
+          editable={!isSaving}
           height="100%"
-          theme="dark"
+          theme={darkAppearance ? "dark" : "light"}
           extensions={[latexLanguage]}
           basicSetup={{
             bracketMatching: true,

@@ -28,9 +28,15 @@ interface WorkspaceProps {
   onSendMessage: (message: string) => void;
   onStopMessage: () => void;
   onWritingContentChange: (projectId: string, content: string) => void;
+  onOpenSettings: () => void;
 }
 
 const NEAR_BOTTOM_THRESHOLD = 96;
+const PROJECT_VIEWS: Array<{ id: ProjectView; label: string }> = [
+  { id: "chat", label: "Chat" },
+  { id: "writing", label: "Writing" },
+  { id: "source", label: "Source" },
+];
 
 function HeroGlow() {
   const filterId = `cowriter-hero-glow-${useId().replace(/:/g, "")}`;
@@ -65,6 +71,7 @@ export function Workspace({
   onSendMessage,
   onStopMessage,
   onWritingContentChange,
+  onOpenSettings,
 }: WorkspaceProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const scrollContentRef = useRef<HTMLDivElement | null>(null);
@@ -72,6 +79,7 @@ export function Workspace({
   const [isNearBottom, setIsNearBottom] = useState(true);
   const [activeView, setActiveView] = useState<ProjectView>("chat");
   const previousProjectIdRef = useRef<string | null>(null);
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const hero = project === null;
 
   const scrollToBottom = () => {
@@ -115,45 +123,43 @@ export function Workspace({
   }, [activeView, hero]);
 
   return (
-    <main className="workspace" data-phase={hero ? "hero" : "active"}>
+    <main className="workspace" data-phase={hero ? "hero" : "active"} data-dialog-fallback-focus tabIndex={-1}>
       {!hero && (
         <header className="workspace-header">
           <div className="workspace-title-row">
             <h1>{project.title}</h1>
             <div className="workspace-tabs" role="tablist" aria-label="Project views">
-              <button
-                id="project-chat-tab"
-                className={activeView === "chat" ? "active" : ""}
-                type="button"
-                role="tab"
-                aria-controls="project-chat-panel"
-                aria-selected={activeView === "chat"}
-                onClick={() => setActiveView("chat")}
-              >
-                Chat
-              </button>
-              <button
-                id="project-writing-tab"
-                className={activeView === "writing" ? "active" : ""}
-                type="button"
-                role="tab"
-                aria-controls="project-writing-panel"
-                aria-selected={activeView === "writing"}
-                onClick={() => setActiveView("writing")}
-              >
-                Writing
-              </button>
-              <button
-                id="project-source-tab"
-                className={activeView === "source" ? "active" : ""}
-                type="button"
-                role="tab"
-                aria-controls="project-source-panel"
-                aria-selected={activeView === "source"}
-                onClick={() => setActiveView("source")}
-              >
-                Source
-              </button>
+              {PROJECT_VIEWS.map((view, index) => (
+                <button
+                  ref={(element) => { tabRefs.current[index] = element; }}
+                  id={`project-${view.id}-tab`}
+                  className={activeView === view.id ? "active" : ""}
+                  type="button"
+                  role="tab"
+                  tabIndex={activeView === view.id ? 0 : -1}
+                  aria-controls={`project-${view.id}-panel`}
+                  aria-selected={activeView === view.id}
+                  key={view.id}
+                  onClick={() => setActiveView(view.id)}
+                  onKeyDown={(event) => {
+                    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+                      return;
+                    }
+                    event.preventDefault();
+                    const nextIndex = event.key === "Home"
+                      ? 0
+                      : event.key === "End"
+                        ? PROJECT_VIEWS.length - 1
+                        : event.key === "ArrowLeft"
+                          ? (index - 1 + PROJECT_VIEWS.length) % PROJECT_VIEWS.length
+                          : (index + 1) % PROJECT_VIEWS.length;
+                    setActiveView(PROJECT_VIEWS[nextIndex].id);
+                    tabRefs.current[nextIndex]?.focus();
+                  }}
+                >
+                  {view.label}
+                </button>
+              ))}
             </div>
           </div>
           <div className="file-tabs" />
@@ -168,10 +174,10 @@ export function Workspace({
         <div className="workspace-body hero">
           <div className="hero-stage">
             <div className="hero-stack">
-              <div className="hero-headline">
+              <h1 className="hero-headline">
                 <span className="hero-mark"><img src={cowriterPet} alt="" /></span>
                 <span>How can I help with your writing?</span>
-              </div>
+              </h1>
               <div className="hero-composer">
                 <HeroGlow />
                 <Composer
@@ -188,6 +194,7 @@ export function Workspace({
                   modelsError={modelsError}
                   onSelectProvider={onSelectProvider}
                   onSelectModel={onSelectModel}
+                  onOpenSettings={onOpenSettings}
                 />
               </div>
             </div>
@@ -246,6 +253,7 @@ export function Workspace({
                 modelsError={modelsError}
                 onSelectProvider={onSelectProvider}
                 onSelectModel={onSelectModel}
+                onOpenSettings={onOpenSettings}
               />
             </div>
           </div>
