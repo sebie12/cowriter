@@ -5,6 +5,7 @@ from .providers import providers_bp
 from .auth_methods import auth_methods_bp
 from .chat import chat_bp
 from .projects import projects_bp
+from .tool_calls import tool_calls_bp
 
 __all__ = [
     "provider_connections_bp",
@@ -12,4 +13,5 @@ __all__ = [
     "auth_methods_bp",
     "chat_bp",
     "projects_bp",
+    "tool_calls_bp",
 ]

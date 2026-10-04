@@ -16,7 +16,12 @@ class FakeChatService:
         self.request = request
         if self.error:
             raise self.error
-        return iter(["provider ", "response"])
+        return iter([
+            {"type": "assistant_start", "id": "assistant-1", "created_at": "2026-09-19T10:00:00Z"},
+            {"type": "assistant_delta", "id": "assistant-1", "content": "provider "},
+            {"type": "assistant_delta", "id": "assistant-1", "content": "response"},
+            {"type": "assistant_end", "id": "assistant-1", "finished_at": "2026-09-19T10:00:01Z"},
+        ])
 
 
 class ChatRouteTests(unittest.TestCase):
@@ -46,8 +51,10 @@ class ChatRouteTests(unittest.TestCase):
         self.assertEqual(
             [json.loads(line) for line in response.get_data(as_text=True).splitlines()],
             [
-                {"type": "delta", "content": "provider "},
-                {"type": "delta", "content": "response"},
+                {"type": "assistant_start", "id": "assistant-1", "created_at": "2026-09-19T10:00:00Z"},
+                {"type": "assistant_delta", "id": "assistant-1", "content": "provider "},
+                {"type": "assistant_delta", "id": "assistant-1", "content": "response"},
+                {"type": "assistant_end", "id": "assistant-1", "finished_at": "2026-09-19T10:00:01Z"},
                 {"type": "done"},
             ],
         )

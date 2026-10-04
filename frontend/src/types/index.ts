@@ -1,12 +1,30 @@
 export type MessageRole = "user" | "assistant";
 
 export interface Message {
+  kind: "message";
   id: string;
   role: MessageRole;
   content: string;
   createdAt: string;
   status?: "streaming" | "complete" | "stopped" | "error";
 }
+
+export type ToolCallStatus = "pending" | "running" | "completed" | "failed";
+
+export interface ToolCall {
+  kind: "tool-call";
+  id: string;
+  providerCallId: string | null;
+  toolName: string;
+  input: unknown;
+  output: unknown | null;
+  status: ToolCallStatus;
+  error: string | null;
+  calledAt: string;
+  finishedAt: string | null;
+}
+
+export type ConversationItem = Message | ToolCall;
 
 export interface Project {
   id: string;
@@ -16,7 +34,7 @@ export interface Project {
   writingContent: string;
   createdAt: string;
   updatedAt: string;
-  messages: Message[];
+  conversationItems: ConversationItem[];
 }
 
 export interface CreateProjectInput {

@@ -218,13 +218,14 @@ class OllamaRouteTests(unittest.TestCase):
             )
 
         self.assertEqual(response.status_code, 200)
+        events = [json.loads(line) for line in response.get_data(as_text=True).splitlines()]
         self.assertEqual(
-            [json.loads(line) for line in response.get_data(as_text=True).splitlines()],
-            [
-                {"type": "delta", "content": "Ollama "},
-                {"type": "delta", "content": "answer"},
-                {"type": "done"},
-            ],
+            [event["type"] for event in events],
+            ["assistant_start", "assistant_delta", "assistant_delta", "assistant_end", "done"],
+        )
+        self.assertEqual(
+            [event["content"] for event in events if event["type"] == "assistant_delta"],
+            ["Ollama ", "answer"],
         )
         request, config = stream_chat.call_args.args
         self.assertEqual(request.provider, "ollama")

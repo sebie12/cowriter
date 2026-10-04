@@ -156,6 +156,14 @@ class Conversation(db.Model):
         passive_deletes=True,
     )
 
+    tool_calls = db.relationship(
+        "ToolCall",
+        back_populates="conversation",
+        cascade="all, delete-orphan",
+        order_by=lambda: (ToolCall.created_at, ToolCall.id),
+        passive_deletes=True,
+    )
+
     created_at = db.Column(
         db.DateTime,
         default=db.func.current_timestamp()
@@ -217,4 +225,46 @@ class Message(db.Model):
             "content": self.content,
             "created_at": _isoformat(self.created_at),
             "updated_at": _isoformat(self.updated_at),
+        }
+
+class ToolCall(db.Model):
+    __tablename__ = "tool_calls"
+
+    id = db.Column(db.Integer, primary_key=True)
+    provider_call_id = db.Column(db.String(255), nullable=True)
+    tool_name = db.Column(db.String(100), nullable=False)
+    input_data = db.Column(db.JSON, nullable=False)
+    output_data = db.Column(db.JSON, nullable=True)
+    status = db.Column(db.String(20), nullable=False, default="pending")
+    error = db.Column(db.Text, nullable=True)
+
+    conversation_id = db.Column(
+        db.Integer,
+        db.ForeignKey("conversations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    conversation = db.relationship("Conversation", back_populates="tool_calls")
+
+    created_at = db.Column(
+        db.DateTime,
+        default=db.func.current_timestamp()
+    )
+    completed_at = db.Column(db.DateTime, nullable=True)
+
+    def __str__(self):
+        return f"Tool Call {self.id} in Conversation {self.conversation_id}"
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "conversation_id": self.conversation_id,
+            "provider_call_id": self.provider_call_id,
+            "tool_name": self.tool_name,
+            "input_data": self.input_data,
+            "output_data": self.output_data,
+            "status": self.status,
+            "error": self.error,
+            "created_at": _isoformat(self.created_at),
+            "completed_at": _isoformat(self.completed_at),
         }

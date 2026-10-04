@@ -5,7 +5,7 @@ from flask import Flask
 from sqlalchemy.exc import IntegrityError
 
 from backend.database import db
-from backend.database.models import Conversation, Message, Project
+from backend.database.models import Conversation, Message, Project, ToolCall
 
 
 class ConversationMessageModelTests(unittest.TestCase):
@@ -71,6 +71,57 @@ class ConversationMessageModelTests(unittest.TestCase):
 
             self.assertEqual(
                 Message.query.filter(Message.id.in_(message_ids)).count(),
+                0,
+            )
+
+    def test_tool_calls_are_ordered_and_deleted_with_conversation(self):
+        with self.app.app_context():
+            project = Project(name="Tool call project")
+            conversation = Conversation(project=project)
+            created_at = datetime(2026, 9, 19, 10, 0, 0)
+            conversation.tool_calls.extend(
+                [
+                    ToolCall(
+                        provider_call_id="call-write",
+                        tool_name="write_file",
+                        input_data={"path": "draft.txt", "content": "Draft"},
+                        output_data={"bytes_written": 5},
+                        status="completed",
+                        created_at=created_at + timedelta(seconds=1),
+                    ),
+                    ToolCall(
+                        provider_call_id="call-read",
+                        tool_name="read_file",
+                        input_data={"path": "draft.txt"},
+                        output_data={"content": "Draft"},
+                        status="completed",
+                        created_at=created_at,
+                    ),
+                ]
+            )
+            db.session.add(project)
+            db.session.commit()
+
+            conversation_id = conversation.id
+            tool_call_ids = [tool_call.id for tool_call in conversation.tool_calls]
+            self.assertEqual(
+                [tool_call.tool_name for tool_call in conversation.tool_calls],
+                ["read_file", "write_file"],
+            )
+            self.assertEqual(
+                str(conversation.tool_calls[0]),
+                f"Tool Call {tool_call_ids[0]} in Conversation {conversation_id}",
+            )
+            self.assertEqual(
+                conversation.tool_calls[0].to_dict()["provider_call_id"],
+                "call-read",
+            )
+
+            db.session.delete(conversation)
+            db.session.commit()
+
+            self.assertEqual(
+                ToolCall.query.filter(ToolCall.id.in_(tool_call_ids)).count(),
                 0,
             )
 

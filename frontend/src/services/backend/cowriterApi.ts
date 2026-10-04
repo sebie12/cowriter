@@ -7,7 +7,7 @@ import type {
   ProviderModel,
   SupportedProvider,
 } from "../../types/providers";
-import type { Message, Project } from "../../types";
+import type { Message, Project, ToolCall, ToolCallStatus } from "../../types";
 import { request, requestJson } from "./http";
 import type { ChatStreamEvent, CowriterApi } from "./types";
 
@@ -99,6 +99,7 @@ function normalizeProjectMessage(value: unknown): Message | null {
     return null;
   }
   return {
+    kind: "message",
     id: String(value.id),
     role: value.role,
     content: value.content,
@@ -141,7 +142,7 @@ function normalizeProject(value: unknown): Project {
     writingContent: "",
     createdAt: project.created_at,
     updatedAt: project.updated_at,
-    messages,
+    conversationItems: messages,
   };
 }
 
@@ -158,6 +159,42 @@ function normalizeProvider(value: unknown): SupportedProvider {
   };
 }
 
+function normalizeToolCallStatus(value: unknown): ToolCallStatus | null {
+  return value === "pending" || value === "running" || value === "completed" || value === "failed"
+    ? value
+    : null;
+}
+
+function normalizeToolCall(value: unknown): ToolCall {
+  if (!isRecord(value)) {
+    throw new Error("Backend returned an invalid tool call.");
+  }
+  const status = normalizeToolCallStatus(value.status);
+  if (
+    (typeof value.id !== "number" && typeof value.id !== "string")
+    || typeof value.tool_name !== "string"
+    || status === null
+    || typeof value.created_at !== "string"
+    || (value.provider_call_id !== null && typeof value.provider_call_id !== "string")
+    || (value.error !== null && typeof value.error !== "string")
+    || (value.completed_at !== null && typeof value.completed_at !== "string")
+  ) {
+    throw new Error("Backend returned an invalid tool call.");
+  }
+  return {
+    kind: "tool-call",
+    id: `tool-call-${String(value.id)}`,
+    providerCallId: value.provider_call_id,
+    toolName: value.tool_name,
+    input: value.input_data,
+    output: value.output_data ?? null,
+    status,
+    error: value.error,
+    calledAt: value.created_at,
+    finishedAt: value.completed_at,
+  };
+}
+
 function processStreamLine(line: string): ChatStreamEvent | { type: "error"; error: string } | null {
   if (!line.trim()) {
     return null;
@@ -171,8 +208,29 @@ function processStreamLine(line: string): ChatStreamEvent | { type: "error"; err
   if (!isRecord(value) || typeof value.type !== "string") {
     throw new Error("Backend returned an invalid chat stream.");
   }
-  if (value.type === "delta" && typeof value.content === "string") {
-    return { type: "delta", content: value.content };
+  if (
+    value.type === "assistant_start"
+    && typeof value.id === "string"
+    && typeof value.created_at === "string"
+  ) {
+    return { type: "assistant_start", messageId: value.id, createdAt: value.created_at };
+  }
+  if (
+    value.type === "assistant_delta"
+    && typeof value.id === "string"
+    && typeof value.content === "string"
+  ) {
+    return { type: "assistant_delta", messageId: value.id, content: value.content };
+  }
+  if (
+    value.type === "assistant_end"
+    && typeof value.id === "string"
+    && typeof value.finished_at === "string"
+  ) {
+    return { type: "assistant_end", messageId: value.id, finishedAt: value.finished_at };
+  }
+  if (value.type === "tool_call") {
+    return { type: "tool_call", toolCall: normalizeToolCall(value.tool_call) };
   }
   if (value.type === "done") {
     return { type: "done" };

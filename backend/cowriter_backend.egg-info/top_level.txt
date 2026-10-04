@@ -2,7 +2,13 @@ admin_views
 app
 auth
 blueprints
+config
 database
 llm
+mcp_client
+mcp_server
 migrations
 prompts
+resources
+services
+tools

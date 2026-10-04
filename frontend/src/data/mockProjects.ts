@@ -11,14 +11,16 @@ export const mockProjects: Project[] = [
     writingContent: "",
     createdAt: now,
     updatedAt: now,
-    messages: [
+    conversationItems: [
       {
+        kind: "message",
         id: "message-modernism-1",
         role: "user",
         content: "Help me shape a research paper about fragmented narration in modernist fiction.",
         createdAt: now,
       },
       {
+        kind: "message",
         id: "message-modernism-2",
         role: "assistant",
         content:
@@ -35,14 +37,16 @@ export const mockProjects: Project[] = [
     writingContent: "",
     createdAt: now,
     updatedAt: now,
-    messages: [
+    conversationItems: [
       {
+        kind: "message",
         id: "message-history-1",
         role: "user",
         content: "I need an outline for an essay about the printing press and social change.",
         createdAt: now,
       },
       {
+        kind: "message",
         id: "message-history-2",
         role: "assistant",
         content:
@@ -59,8 +63,9 @@ export const mockProjects: Project[] = [
     writingContent: "",
     createdAt: now,
     updatedAt: now,
-    messages: [
+    conversationItems: [
       {
+        kind: "message",
         id: "message-story-1",
         role: "assistant",
         content:
@@ -77,6 +82,6 @@ export const mockProjects: Project[] = [
     writingContent: "",
     createdAt: now,
     updatedAt: now,
-    messages: [],
+    conversationItems: [],
   },
 ];

@@ -45,10 +45,10 @@ function MessageActions({ message, quiet = false }: MessageItemProps & { quiet?:
   );
 }
 
-function TypingIndicator() {
+export function TypingIndicator({ label = "Drafting" }: { label?: string }) {
   return (
-    <div className="typing-indicator" role="status" aria-label="Cowriter is drafting a response">
-      <span>Drafting</span>
+    <div className="typing-indicator" role="status" aria-label={`Cowriter is ${label.toLowerCase()}`}>
+      <span>{label}</span>
       <i aria-hidden="true" />
       <i aria-hidden="true" />
       <i aria-hidden="true" />

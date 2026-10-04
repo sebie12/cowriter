@@ -30,6 +30,10 @@ export function DataIcon(props: IconProps) {
   return <Icon {...props}><ellipse cx="8" cy="3.5" rx="5.5" ry="2" stroke="currentColor" /><path d="M2.5 3.5v4c0 1.1 2.46 2 5.5 2s5.5-.9 5.5-2v-4M2.5 7.5v4c0 1.1 2.46 2 5.5 2s5.5-.9 5.5-2v-4" stroke="currentColor" /></Icon>;
 }
 
+export function ToolIcon(props: IconProps) {
+  return <Icon {...props}><path d="M9.7 2.1a3.2 3.2 0 0 0-3.9 4.1L2.2 9.8a1.6 1.6 0 0 0 0 2.3l1.7 1.7a1.6 1.6 0 0 0 2.3 0l3.6-3.6a3.2 3.2 0 0 0 4.1-3.9l-2 2-2.2-.5-.5-2.2 2-2a3.2 3.2 0 0 0-1.5-1.5Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" /></Icon>;
+}
+
 export function ChevronDownIcon(props: IconProps) {
   return <Icon {...props}><path d="m4 6 4 4 4-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></Icon>;
 }

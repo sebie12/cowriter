@@ -13,3 +13,4 @@ src-tauri/gen/
 AGENTS.md
 .agents/
 skills-lock.json
+instance/

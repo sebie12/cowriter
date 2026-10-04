@@ -1,3 +1,4 @@
+import asyncio
 import unittest
 from types import SimpleNamespace
 
@@ -55,11 +56,15 @@ class FakeOllamaProvider(FakeProvider):
 class FakeMCPClient:
     def __init__(self):
         self.calls = []
+        self.context_task = None
 
     async def __aenter__(self):
+        self.context_task = asyncio.current_task()
         return self
 
     async def __aexit__(self, _exception_type, _exception, _traceback):
+        if asyncio.current_task() is not self.context_task:
+            raise RuntimeError("MCP context exited in a different task.")
         return False
 
     async def list_tools(self):
@@ -78,8 +83,80 @@ class FakeMCPClient:
         )
 
 
+class FailingMCPClient(FakeMCPClient):
+    async def call_tool(self, name, arguments):
+        self.calls.append((name, arguments))
+        raise RuntimeError("Tool process stopped.")
+
+
+class FakeToolCallService:
+    def __init__(self):
+        self.started = []
+        self.completed = []
+        self.failed = []
+
+    def start_tool_call(self, **values):
+        self.started.append(values)
+        record = FakeToolCallRecord(len(self.started), **values)
+        return record
+
+    def mark_tool_call_running(self, tool_call_id):
+        record = FakeToolCallRecord.records[tool_call_id]
+        record.status = "running"
+        return record
+
+    def complete_tool_call(self, tool_call_id, **values):
+        self.completed.append((tool_call_id, values))
+        record = FakeToolCallRecord.records[tool_call_id]
+        record.status = "failed" if values.get("is_error") else "completed"
+        record.output_data = values["output_data"]
+        record.error = values.get("error")
+        record.completed_at = "2026-09-19T10:00:01Z"
+        return record
+
+    def fail_tool_call(self, tool_call_id, error):
+        self.failed.append((tool_call_id, str(error)))
+        record = FakeToolCallRecord.records[tool_call_id]
+        record.status = "failed"
+        record.error = str(error)
+        record.completed_at = "2026-09-19T10:00:01Z"
+        return record
+
+
+class FakeToolCallRecord:
+    records = {}
+
+    def __init__(self, record_id, **values):
+        self.id = record_id
+        self.conversation_id = values["conversation_id"]
+        self.provider_call_id = values["provider_call_id"]
+        self.tool_name = values["tool_name"]
+        self.input_data = values["input_data"]
+        self.output_data = None
+        self.status = "pending"
+        self.error = None
+        self.created_at = "2026-09-19T10:00:00Z"
+        self.completed_at = None
+        self.records[self.id] = self
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "conversation_id": self.conversation_id,
+            "provider_call_id": self.provider_call_id,
+            "tool_name": self.tool_name,
+            "input_data": self.input_data,
+            "output_data": self.output_data,
+            "status": self.status,
+            "error": self.error,
+            "created_at": self.created_at,
+            "completed_at": self.completed_at,
+        }
+
+
 class ChatServiceTests(unittest.TestCase):
     def setUp(self):
+        FakeToolCallRecord.records = {}
         self.connection = SimpleNamespace(
             provider="openai",
             account_id="account-1",
@@ -116,12 +193,22 @@ class ChatServiceTests(unittest.TestCase):
 
         chunks = list(self.service.stream_chat(request))
 
-        self.assertEqual(chunks, ["streamed ", "answer"])
+        self.assertEqual([event["type"] for event in chunks], [
+            "assistant_start",
+            "assistant_delta",
+            "assistant_delta",
+            "assistant_end",
+        ])
+        self.assertEqual(
+            [event["content"] for event in chunks if event["type"] == "assistant_delta"],
+            ["streamed ", "answer"],
+        )
         self.assertEqual(self.provider.stream_chat_call[0], request)
         self.assertEqual(self.provider.stream_chat_call[1].credentials, {"api_key": "secret"})
 
     def test_feeds_mcp_tools_and_results_to_provider(self):
         mcp_client = FakeMCPClient()
+        tool_call_service = FakeToolCallService()
         self.provider.turns = [
             ModelTurn("", (ToolCall("call-1", "read_file", {"path": "draft.txt"}),)),
             ModelTurn("Answer from the project file."),
@@ -132,13 +219,29 @@ class ChatServiceTests(unittest.TestCase):
             providers=[self.provider],
             project_lookup=lambda _project_id: SimpleNamespace(path="/tmp/project"),
             mcp_client_factory=lambda _project_path: mcp_client,
+            conversation_resolver=lambda _project_id: SimpleNamespace(id=12),
+            tool_call_service=tool_call_service,
         )
 
         chunks = list(service.stream_chat(
             ChatRequest(7, "openai", "gpt-test", "Read it", project_id=3)
         ))
 
-        self.assertEqual(chunks, ["Answer from the project file."])
+        self.assertEqual(
+            [event["type"] for event in chunks],
+            [
+                "tool_call",
+                "tool_call",
+                "tool_call",
+                "assistant_start",
+                "assistant_delta",
+                "assistant_end",
+            ],
+        )
+        self.assertEqual(
+            [event["tool_call"]["status"] for event in chunks if event["type"] == "tool_call"],
+            ["pending", "running", "completed"],
+        )
         self.assertEqual(mcp_client.calls, [("read_file", {"path": "draft.txt"})])
         self.assertEqual(self.provider.complete_chat_calls[0][3][0].name, "read_file")
         self.assertEqual(self.provider.complete_chat_calls[1][2][-1], {
@@ -147,6 +250,83 @@ class ChatServiceTests(unittest.TestCase):
             "tool_name": "read_file",
             "content": '{"content": "project text"}',
         })
+        self.assertEqual(tool_call_service.started, [{
+            "conversation_id": 12,
+            "provider_call_id": "call-1",
+            "tool_name": "read_file",
+            "input_data": {"path": "draft.txt"},
+        }])
+        self.assertEqual(tool_call_service.completed, [(1, {
+            "output_data": {"content": "project text"},
+            "is_error": False,
+            "error": None,
+        })])
+        self.assertEqual(tool_call_service.failed, [])
+
+    def test_records_tool_execution_exception(self):
+        mcp_client = FailingMCPClient()
+        tool_call_service = FakeToolCallService()
+        self.provider.turns = [
+            ModelTurn("", (ToolCall("call-2", "read_file", {"path": "draft.txt"}),)),
+        ]
+        service = ChatService(
+            connection_lookup=lambda _connection_id: self.connection,
+            credential_store=self.credentials,
+            providers=[self.provider],
+            project_lookup=lambda _project_id: SimpleNamespace(path="/tmp/project"),
+            mcp_client_factory=lambda _project_path: mcp_client,
+            conversation_resolver=lambda _project_id: SimpleNamespace(id=13),
+            tool_call_service=tool_call_service,
+        )
+
+        events = iter(service.stream_chat(
+            ChatRequest(7, "openai", "gpt-test", "Read it", project_id=3)
+        ))
+        self.assertEqual(next(events)["tool_call"]["status"], "pending")
+        self.assertEqual(next(events)["tool_call"]["status"], "running")
+        self.assertEqual(next(events)["tool_call"]["status"], "failed")
+        with self.assertRaisesRegex(LLMError, "project tools"):
+            next(events)
+
+        self.assertEqual(tool_call_service.failed, [(1, "Tool process stopped.")])
+        self.assertEqual(tool_call_service.completed, [])
+
+    def test_emits_multiple_tool_calls_in_execution_order(self):
+        mcp_client = FakeMCPClient()
+        tool_call_service = FakeToolCallService()
+        self.provider.turns = [
+            ModelTurn("", (
+                ToolCall("call-1", "read_file", {"path": "first.txt"}),
+                ToolCall("call-2", "read_file", {"path": "second.txt"}),
+            )),
+            ModelTurn("Both files were read."),
+        ]
+        service = ChatService(
+            connection_lookup=lambda _connection_id: self.connection,
+            credential_store=self.credentials,
+            providers=[self.provider],
+            project_lookup=lambda _project_id: SimpleNamespace(path="/tmp/project"),
+            mcp_client_factory=lambda _project_path: mcp_client,
+            conversation_resolver=lambda _project_id: SimpleNamespace(id=14),
+            tool_call_service=tool_call_service,
+        )
+
+        events = list(service.stream_chat(
+            ChatRequest(7, "openai", "gpt-test", "Read both", project_id=3)
+        ))
+        tool_events = [event["tool_call"] for event in events if event["type"] == "tool_call"]
+
+        self.assertEqual(
+            [(event["provider_call_id"], event["status"]) for event in tool_events],
+            [
+                ("call-1", "pending"),
+                ("call-1", "running"),
+                ("call-1", "completed"),
+                ("call-2", "pending"),
+                ("call-2", "running"),
+                ("call-2", "completed"),
+            ],
+        )
 
     def test_rejects_connection_provider_mismatch(self):
         request = ChatRequest(7, "ollama", "model", "Hello")

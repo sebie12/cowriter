@@ -1,4 +1,4 @@
-import type { ChatRequest, CreateProjectInput, Project } from "../../types";
+import type { ChatRequest, CreateProjectInput, Project, ToolCall } from "../../types";
 import type {
   ConnectProviderInput,
   OAuthConnectionStatus,
@@ -9,7 +9,10 @@ import type {
 } from "../../types/providers";
 
 export type ChatStreamEvent =
-  | { type: "delta"; content: string }
+  | { type: "assistant_start"; messageId: string; createdAt: string }
+  | { type: "assistant_delta"; messageId: string; content: string }
+  | { type: "assistant_end"; messageId: string; finishedAt: string }
+  | { type: "tool_call"; toolCall: ToolCall }
   | { type: "done" };
 
 export interface CowriterApi {

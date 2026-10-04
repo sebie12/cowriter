@@ -1,13 +1,14 @@
-import type { Message } from "../types";
-import { MessageItem } from "./conversation/MessageItem";
+import type { ConversationItem } from "../types";
+import { MessageItem, TypingIndicator } from "./conversation/MessageItem";
+import { ToolCallItem } from "./conversation/ToolCallItem";
 
 interface ConversationProps {
-  messages: Message[];
+  items: ConversationItem[];
   isSending: boolean;
 }
 
-export function Conversation({ messages, isSending }: ConversationProps) {
-  if (messages.length === 0 && !isSending) {
+export function Conversation({ items, isSending }: ConversationProps) {
+  if (items.length === 0 && !isSending) {
     return (
       <div className="project-empty-state">
         <h2>Start this project</h2>
@@ -22,7 +23,17 @@ export function Conversation({ messages, isSending }: ConversationProps) {
       aria-label="Conversation"
       aria-busy={isSending}
     >
-      {messages.map((message) => <MessageItem key={message.id} message={message} />)}
+      {items.map((item) => item.kind === "message"
+        ? <MessageItem key={item.id} message={item} />
+        : <ToolCallItem key={item.id} toolCall={item} />)}
+      {isSending
+        && !items.some((item) => item.kind === "message" && item.status === "streaming")
+        && !items.some((item) => item.kind === "tool-call" && ["pending", "running"].includes(item.status))
+        && (
+          <div className="message-row assistant-message conversation-progress">
+            <TypingIndicator label="Thinking" />
+          </div>
+        )}
     </section>
   );
 }

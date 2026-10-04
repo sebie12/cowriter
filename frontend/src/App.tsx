@@ -6,7 +6,7 @@ import { Workspace } from "./components/Workspace";
 import { useProviders } from "./hooks/useProviders";
 import { projectFilesystemService } from "./services/projectFilesystem";
 import type { CowriterApi } from "./services/backend/types";
-import type { CreateProjectInput, Message, Project } from "./types";
+import type { ConversationItem, CreateProjectInput, Message, Project, ToolCall } from "./types";
 import type { ProviderModel } from "./types/providers";
 import { createId } from "./utils/ids";
 
@@ -51,6 +51,7 @@ function createMessage(
   status: Message["status"] = "complete",
 ): Message {
   return {
+    kind: "message",
     id: createId("message"),
     role,
     content,
@@ -229,7 +230,11 @@ export default function App({ api }: { api: CowriterApi }) {
     return () => controller.abort();
   }, [api, activeConnection?.id, activeConnection?.endpointUrl, activeConnection?.updatedAt, providerState.refreshVersion]);
 
-  const updateProjectMessages = (projectId: string, messages: Message[], title?: string) => {
+  const appendProjectConversationItems = (
+    projectId: string,
+    items: ConversationItem[],
+    title?: string,
+  ) => {
     const timestamp = new Date().toISOString();
 
     setProjects((currentProjects) =>
@@ -242,10 +247,24 @@ export default function App({ api }: { api: CowriterApi }) {
           ...project,
           title: title ?? project.title,
           updatedAt: timestamp,
-          messages: [...project.messages, ...messages],
+          conversationItems: [...project.conversationItems, ...items],
         };
       }),
     );
+  };
+
+  const startProjectAssistantMessage = (projectId: string, message: Message) => {
+    const timestamp = new Date().toISOString();
+    setProjects((currentProjects) => currentProjects.map((project) => {
+      if (project.id !== projectId || project.conversationItems.some((item) => item.id === message.id)) {
+        return project;
+      }
+      return {
+        ...project,
+        updatedAt: timestamp,
+        conversationItems: [...project.conversationItems, message],
+      };
+    }));
   };
 
   const appendToProjectMessage = (projectId: string, messageId: string, content: string) => {
@@ -256,9 +275,11 @@ export default function App({ api }: { api: CowriterApi }) {
         ? {
             ...project,
             updatedAt: timestamp,
-            messages: project.messages.map((message) => message.id === messageId
-              ? { ...message, content: message.content + content }
-              : message),
+            conversationItems: project.conversationItems.map((item) => (
+              item.kind === "message" && item.id === messageId
+                ? { ...item, content: item.content + content }
+                : item
+            )),
           }
         : project),
     );
@@ -274,11 +295,37 @@ export default function App({ api }: { api: CowriterApi }) {
       ? {
           ...project,
           updatedAt: timestamp,
-          messages: project.messages.map((message) => message.id === messageId
-            ? { ...message, status }
-            : message),
+          conversationItems: project.conversationItems.map((item) => (
+            item.kind === "message" && item.id === messageId
+              ? { ...item, status }
+              : item
+          )),
         }
       : project));
+  };
+
+  const upsertProjectToolCall = (projectId: string, toolCall: ToolCall) => {
+    const timestamp = new Date().toISOString();
+    setProjects((currentProjects) => currentProjects.map((project) => {
+      if (project.id !== projectId) {
+        return project;
+      }
+      const existingIndex = project.conversationItems.findIndex((item) => item.id === toolCall.id);
+      if (existingIndex < 0) {
+        return {
+          ...project,
+          updatedAt: timestamp,
+          conversationItems: [...project.conversationItems, toolCall],
+        };
+      }
+      return {
+        ...project,
+        updatedAt: timestamp,
+        conversationItems: project.conversationItems.map((item, index) => (
+          index === existingIndex ? toolCall : item
+        )),
+      };
+    }));
   };
 
   const sendMessageToProject = async (activeProject: Project, trimmedContent: string) => {
@@ -292,11 +339,12 @@ export default function App({ api }: { api: CowriterApi }) {
     setIsSending(true);
 
     const userMessage = createMessage("user", trimmedContent);
-    const assistantMessage = createMessage("assistant", "", "streaming");
-    const shouldRenameProject = activeProject.title === "Untitled project" && activeProject.messages.length === 0;
-    updateProjectMessages(
+    const streamingMessageIds = new Set<string>();
+    const shouldRenameProject = activeProject.title === "Untitled project"
+      && activeProject.conversationItems.every((item) => item.kind !== "message");
+    appendProjectConversationItems(
       activeProject.id,
-      [userMessage, assistantMessage],
+      [userMessage],
       shouldRenameProject ? titleFromMessage(trimmedContent) : undefined,
     );
     setSendingProjectId(activeProject.id);
@@ -313,28 +361,47 @@ export default function App({ api }: { api: CowriterApi }) {
           message: trimmedContent,
           projectTitle: activeProject.title,
           projectDescription: activeProject.writingContext ?? undefined,
-          history: activeProject.messages
-            .filter((message) => message.content.trim().length > 0)
-            .map(({ role, content: messageContent }) => ({
-              role,
-              content: messageContent,
-            })),
+          history: activeProject.conversationItems
+            .filter((item): item is Message => item.kind === "message" && item.content.trim().length > 0)
+            .map(({ role, content: messageContent }) => ({ role, content: messageContent })),
         },
         (event) => {
-          if (event.type === "delta") {
-            appendToProjectMessage(activeProject.id, assistantMessage.id, event.content);
-          } else {
-            updateProjectMessageStatus(activeProject.id, assistantMessage.id, "complete");
+          if (event.type === "assistant_start") {
+            streamingMessageIds.add(event.messageId);
+            startProjectAssistantMessage(activeProject.id, {
+              kind: "message",
+              id: event.messageId,
+              role: "assistant",
+              content: "",
+              createdAt: event.createdAt,
+              status: "streaming",
+            });
+          } else if (event.type === "assistant_delta") {
+            appendToProjectMessage(activeProject.id, event.messageId, event.content);
+          } else if (event.type === "assistant_end") {
+            streamingMessageIds.delete(event.messageId);
+            updateProjectMessageStatus(activeProject.id, event.messageId, "complete");
+          } else if (event.type === "tool_call") {
+            upsertProjectToolCall(activeProject.id, event.toolCall);
+          } else if (event.type === "done") {
+            for (const messageId of streamingMessageIds) {
+              updateProjectMessageStatus(activeProject.id, messageId, "complete");
+            }
+            streamingMessageIds.clear();
           }
         },
         controller.signal,
       );
     } catch (requestError) {
       if (requestError instanceof Error && requestError.name === "AbortError") {
-        updateProjectMessageStatus(activeProject.id, assistantMessage.id, "stopped");
+        for (const messageId of streamingMessageIds) {
+          updateProjectMessageStatus(activeProject.id, messageId, "stopped");
+        }
         return;
       }
-      updateProjectMessageStatus(activeProject.id, assistantMessage.id, "error");
+      for (const messageId of streamingMessageIds) {
+        updateProjectMessageStatus(activeProject.id, messageId, "error");
+      }
       setError(
         requestError instanceof Error
           ? requestError.message

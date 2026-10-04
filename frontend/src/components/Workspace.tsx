@@ -99,7 +99,7 @@ export function Workspace({
     if (activeView === "chat" && isNearBottomRef.current) {
       scrollToBottom();
     }
-  }, [activeView, project?.id, project?.messages, isThinking]);
+  }, [activeView, project?.id, project?.conversationItems, isThinking]);
 
   useEffect(() => {
     setActiveView("chat");
@@ -220,7 +220,7 @@ export function Workspace({
             }}
           >
             <div ref={scrollContentRef} className="workspace-scroll-content">
-              <Conversation messages={project.messages} isSending={isThinking} />
+              <Conversation items={project.conversationItems} isSending={isThinking} />
             </div>
             {!isNearBottom && (
               <div className="scroll-to-bottom-slot">

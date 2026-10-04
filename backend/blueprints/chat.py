@@ -83,18 +83,18 @@ def chat():
 
     try:
         chat_request = parse_chat_payload(request.get_json(silent=True))
-        chunks = iter(current_app.extensions["chat_service"].stream_chat(chat_request))
-        first_chunk = next(chunks)
+        events = iter(current_app.extensions["chat_service"].stream_chat(chat_request))
+        first_event = next(events)
     except StopIteration:
         return jsonify({"error": "The provider returned an empty response."}), 502
     except LLMError as error:
         return jsonify({"error": error.message}), error.status_code
 
     def generate():
-        yield json.dumps({"type": "delta", "content": first_chunk}) + "\n"
+        yield json.dumps(first_event) + "\n"
         try:
-            for chunk in chunks:
-                yield json.dumps({"type": "delta", "content": chunk}) + "\n"
+            for event in events:
+                yield json.dumps(event) + "\n"
         except LLMError as error:
             yield json.dumps({"type": "error", "error": error.message}) + "\n"
             return

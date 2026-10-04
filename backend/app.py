@@ -11,6 +11,7 @@ if __package__:
         projects_bp,
         provider_connections_bp,
         providers_bp,
+        tool_calls_bp,
     )
     from .database import admin, db, migrate
     from .database.catalog import ensure_provider_catalog
@@ -21,8 +22,9 @@ if __package__:
         Project,
         Provider,
         ProviderConnection,
+        ToolCall,
     )
-    from .services import ChatService
+    from .services import ChatService, ConversationService, ToolCallService
     from .auth.credentials import CredentialStore
 else:
     try:
@@ -36,6 +38,7 @@ else:
         projects_bp,
         provider_connections_bp,
         providers_bp,
+        tool_calls_bp,
     )
     from database import admin, db, migrate
     from database.catalog import ensure_provider_catalog
@@ -46,8 +49,9 @@ else:
         Project,
         Provider,
         ProviderConnection,
+        ToolCall,
     )
-    from services import ChatService
+    from services import ChatService, ConversationService, ToolCallService
     from auth.credentials import CredentialStore
 
 from flask_admin.contrib.sqla import ModelView
@@ -69,6 +73,8 @@ app.extensions["chat_service"] = ChatService(
     connection_lookup=lambda connection_id: db.session.get(ProviderConnection, connection_id),
     credential_store=CredentialStore(),
     project_lookup=lambda project_id: db.session.get(Project, project_id),
+    conversation_resolver=ConversationService().get_or_create_for_project,
+    tool_call_service=ToolCallService(),
 )
 
 # ===== BLUEPRINTS =====
@@ -77,6 +83,7 @@ app.register_blueprint(providers_bp)
 app.register_blueprint(auth_methods_bp)
 app.register_blueprint(chat_bp)
 app.register_blueprint(projects_bp)
+app.register_blueprint(tool_calls_bp)
 
 DEFAULT_ALLOWED_ORIGINS = {
     "http://127.0.0.1:5173",
@@ -114,6 +121,7 @@ admin.add_view(ModelView(ProviderConnection, db))
 admin.add_view(ModelView(Project, db))
 admin.add_view(ModelView(Conversation, db))
 admin.add_view(ModelView(Message, db))
+admin.add_view(ModelView(ToolCall, db))
 
 if __name__ == "__main__":
     with app.app_context():
