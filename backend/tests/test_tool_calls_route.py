@@ -54,7 +54,7 @@ class ToolCallsRouteTests(unittest.TestCase):
             db.session.commit()
             conversation_id = conversation.id
 
-        response = self.client.get(f"/api/tool-calls/{conversation_id}")
+        response = self.client.get(f"/api/conversations/{conversation_id}/tool-calls")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
@@ -70,16 +70,21 @@ class ToolCallsRouteTests(unittest.TestCase):
             db.session.commit()
             conversation_id = conversation.id
 
-        response = self.client.get(f"/api/tool-calls/{conversation_id}")
+        response = self.client.get(f"/api/conversations/{conversation_id}/tool-calls")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json(), [])
 
     def test_returns_not_found_for_unknown_conversation(self):
-        response = self.client.get("/api/tool-calls/999")
+        response = self.client.get("/api/conversations/999/tool-calls")
 
         self.assertEqual(response.status_code, 404)
         self.assertEqual(response.get_json(), {"error": "Conversation not found."})
+
+    def test_old_ambiguous_tool_calls_path_is_not_available(self):
+        response = self.client.get("/api/tool-calls/999")
+
+        self.assertEqual(response.status_code, 404)
 
 
 if __name__ == "__main__":

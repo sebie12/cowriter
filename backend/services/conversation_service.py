@@ -1,9 +1,6 @@
 from sqlalchemy.exc import SQLAlchemyError
 
-if __package__ and __package__.startswith("backend."):
-    from ..database import Conversation, db
-else:
-    from database import Conversation, db
+from backend.database import Conversation, db
 
 
 class ConversationService:

@@ -1,9 +1,12 @@
+import sys
+from pathlib import Path
+
 from mcp.server.mcpserver import MCPServer
 
-if __package__:
-    from .tools import register_file_tools
-else:
-    from tools import register_file_tools
+if __name__ == "__main__" and not __package__:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from backend.tools import register_file_tools
 
 #from services.customers import CustomerService
 #from services.orders import OrderService

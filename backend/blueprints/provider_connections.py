@@ -1,16 +1,12 @@
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, current_app, jsonify
 
-if __package__ and __package__.startswith("backend."):
-    from ..llm import LLMError
-    from ..database import ProviderConnection, db
-else:
-    from llm import LLMError
-    from database import ProviderConnection, db
+from backend.database import ProviderConnection, db
+from backend.llm import LLMError
 
 provider_connections_bp = Blueprint(
     "provider_connections",
     __name__,
-    url_prefix="/provider-connections",
+    url_prefix="/api/provider-connections",
 )
 
 def serialize_provider_connection(conn):
@@ -59,29 +55,6 @@ def get_provider_connection_models(connection_id):
             for model in models
         ],
     })
-
-
-@provider_connections_bp.route("/", methods=["POST"])
-def create_provider_connection():
-    payload = request.get_json(silent=True) or {}
-    provider = payload.get("provider")
-    auth_method_id = payload.get("auth_method_id")
-    account_id = payload.get("account_id")
-    account_label = payload.get("account_label")
-
-    if not all(isinstance(field, str) and field.strip() for field in [provider, auth_method_id, account_id, account_label]):
-        return jsonify({"error": "All fields are required"}), 400
-
-    new_connection = ProviderConnection(
-        provider=provider.strip(),
-        auth_method_id=auth_method_id.strip(),
-        account_id=account_id.strip(),
-        account_label=account_label.strip(),
-    )
-    db.session.add(new_connection)
-    db.session.commit()
-
-    return jsonify(serialize_provider_connection(new_connection)), 201
 
 
 @provider_connections_bp.route("/<int:connection_id>", methods=["DELETE"])

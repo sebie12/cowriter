@@ -58,6 +58,7 @@ class ProjectRouteTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 201)
         payload = response.get_json()
+        self.assertEqual(response.headers["Location"], f"/api/projects/{payload['id']}")
         self.assertEqual(payload["name"], "Research project")
         self.assertEqual(
             payload["description"],
@@ -136,7 +137,7 @@ class ProjectRouteTests(unittest.TestCase):
         with self.app.app_context():
             self.assertEqual(Project.query.count(), 1)
 
-    def test_patch_updates_project_opened_at(self):
+    def test_open_updates_project_opened_at(self):
         with self.app.app_context():
             project = Project(
                 name="Opened project",
@@ -146,7 +147,7 @@ class ProjectRouteTests(unittest.TestCase):
             db.session.commit()
             project_id = project.id
 
-        response = self.app.test_client().patch(f"/api/projects/{project_id}")
+        response = self.app.test_client().post(f"/api/projects/{project_id}/open")
 
         self.assertEqual(response.status_code, 200)
         self.assertGreater(
@@ -154,11 +155,16 @@ class ProjectRouteTests(unittest.TestCase):
             datetime(2000, 1, 1),
         )
 
-    def test_patch_rejects_unknown_project(self):
-        response = self.app.test_client().patch("/api/projects/999")
+    def test_open_rejects_unknown_project(self):
+        response = self.app.test_client().post("/api/projects/999/open")
 
         self.assertEqual(response.status_code, 404)
         self.assertEqual(response.get_json(), {"error": "Project not found."})
+
+    def test_project_resource_does_not_accept_bodyless_patch(self):
+        response = self.app.test_client().patch("/api/projects/999")
+
+        self.assertEqual(response.status_code, 405)
 
 
 if __name__ == "__main__":

@@ -95,10 +95,64 @@ class OllamaRouteTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 201)
         connection = response.get_json()
+        self.assertEqual(response.headers["Location"], f"/api/provider-connections/{connection['id']}")
         self.assertEqual(connection["provider"], "ollama")
         self.assertEqual(connection["auth_method"], "local")
         self.assertEqual(connection["endpoint_url"], "http://127.0.0.1:11434")
         self.assertEqual(connection["status"], "connected")
+
+        listed = client.get("/api/provider-connections/")
+        self.assertEqual(listed.status_code, 200)
+        self.assertIn(connection, listed.get_json())
+
+        detail = client.get(f"/api/provider-connections/{connection['id']}")
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(detail.get_json(), connection)
+
+    def test_reconnecting_existing_account_returns_existing_resource(self):
+        client = self.app.test_client()
+        with patch(
+            "backend.auth.providers.Ollama.OllamaProvider.validate_connection",
+            return_value="http://127.0.0.1:11434",
+        ):
+            created = client.post(
+                "/api/providers/ollama/connect",
+                json={"auth_method": "local", "server_url": "http://127.0.0.1:11434"},
+            )
+            updated = client.post(
+                "/api/providers/ollama/connect",
+                json={"auth_method": "local", "server_url": "http://127.0.0.1:11434"},
+            )
+
+        self.assertEqual(created.status_code, 201)
+        self.assertEqual(updated.status_code, 200)
+        self.assertEqual(updated.get_json()["id"], created.get_json()["id"])
+        with self.app.app_context():
+            self.assertEqual(ProviderConnection.query.count(), 1)
+
+    def test_direct_connection_creation_is_not_available(self):
+        response = self.app.test_client().post(
+            "/api/provider-connections/",
+            json={
+                "provider": "ollama",
+                "auth_method_id": "1",
+                "account_id": "unvalidated",
+                "account_label": "Unvalidated connection",
+            },
+        )
+
+        self.assertEqual(response.status_code, 405)
+        with self.app.app_context():
+            self.assertEqual(ProviderConnection.query.count(), 0)
+
+    def test_deletes_connection_through_api_namespace(self):
+        connection_id = self.create_ollama_connection()
+        client = self.app.test_client()
+
+        response = client.delete(f"/api/provider-connections/{connection_id}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(client.get(f"/api/provider-connections/{connection_id}").status_code, 404)
 
     def test_catalog_repairs_case_variant_records(self):
         with self.app.app_context():
@@ -133,7 +187,7 @@ class OllamaRouteTests(unittest.TestCase):
             return_value=["gemma3:latest", "qwen3:8b"],
         ) as list_models:
             response = self.app.test_client().get(
-                f"/provider-connections/{connection_id}/models",
+                f"/api/provider-connections/{connection_id}/models",
             )
 
         self.assertEqual(response.status_code, 200)
@@ -181,7 +235,7 @@ class OllamaRouteTests(unittest.TestCase):
             ) as list_models,
         ):
             response = self.app.test_client().get(
-                f"/provider-connections/{connection_id}/models",
+                f"/api/provider-connections/{connection_id}/models",
             )
 
         self.assertEqual(response.status_code, 200)

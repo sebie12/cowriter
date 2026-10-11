@@ -1,10 +1,7 @@
 from flask import Blueprint, jsonify, request
 from sqlalchemy.exc import IntegrityError
 
-if __package__ and __package__.startswith("backend."):
-    from ..database import Conversation, Message, Project, db
-else:
-    from database import Conversation, Message, Project, db
+from backend.database import Conversation, Message, Project, db
 
 
 conversations_bp = Blueprint(
@@ -13,4 +10,3 @@ conversations_bp = Blueprint(
     url_prefix="/api/projects/conversations",
 )
 ALLOWED_MESSAGE_ROLES = {"system", "user", "assistant"}
-

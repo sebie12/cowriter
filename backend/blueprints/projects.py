@@ -1,14 +1,9 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, url_for
 from sqlalchemy.exc import IntegrityError
 
-if __package__ and __package__.startswith("backend."):
-    from ..database import Conversation, Message, Project, db
-    from ..prompts import SystemPrompts
-    from ..services.project_service import ProjectService
-else:
-    from database import Conversation, Message, Project, db
-    from prompts import SystemPrompts
-    from services.project_service import ProjectService
+from backend.database import Conversation, Message, Project, db
+from backend.prompts import SystemPrompts
+from backend.services.project_service import ProjectService
 
 
 projects_bp = Blueprint(
@@ -160,10 +155,12 @@ def create_project():
     except IntegrityError:
         return jsonify({"error": "A project with this name or path already exists."}), 409
 
-    return jsonify(project.to_dict()), 201
+    response = jsonify(project.to_dict())
+    response.headers["Location"] = url_for("projects.get_project", project_id=project.id)
+    return response, 201
 
-@projects_bp.route("/<int:project_id>", methods=["PATCH"], strict_slashes=False)
-def update_project(project_id):
+@projects_bp.post("/<int:project_id>/open")
+def open_project(project_id):
     project = ProjectService().project_opened(project_id)
     if not project:
         return jsonify({"error": "Project not found."}), 404

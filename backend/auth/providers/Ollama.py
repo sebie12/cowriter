@@ -7,28 +7,16 @@ from urllib.parse import urlsplit
 
 import ollama
 
-if __package__ and __package__.startswith("backend."):
-    from ..connections import ProviderConnectionError, ProviderConnectionResult, ProviderConnector
-    from ...llm import (
-        ChatRequest,
-        ChatResult,
-        LLMError,
-        ModelTurn,
-        ProviderConfig,
-        ToolCall,
-        ToolDefinition,
-    )
-else:
-    from auth.connections import ProviderConnectionError, ProviderConnectionResult, ProviderConnector
-    from llm import (
-        ChatRequest,
-        ChatResult,
-        LLMError,
-        ModelTurn,
-        ProviderConfig,
-        ToolCall,
-        ToolDefinition,
-    )
+from backend.auth.connections import ProviderConnectionError, ProviderConnectionResult, ProviderConnector
+from backend.llm import (
+    ChatRequest,
+    ChatResult,
+    LLMError,
+    ModelTurn,
+    ProviderConfig,
+    ToolCall,
+    ToolDefinition,
+)
 
 DEFAULT_OLLAMA_SERVER_URL = "http://127.0.0.1:11434"
 

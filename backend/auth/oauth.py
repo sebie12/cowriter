@@ -8,10 +8,7 @@ from google.auth.transport.requests import AuthorizedSession
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 
-if __package__ and __package__.startswith("backend."):
-    from .connections import ProviderConnectionError
-else:
-    from auth.connections import ProviderConnectionError
+from backend.auth.connections import ProviderConnectionError
 
 GOOGLE_OAUTH_SCOPES = [
     "openid",

@@ -2,12 +2,8 @@ import json
 
 from flask import Blueprint, Response, current_app, jsonify, request, stream_with_context
 
-if __package__ and __package__.startswith("backend."):
-    from ..llm import ChatRequest, LLMError
-    from ..prompts import SystemPrompts
-else:
-    from llm import ChatRequest, LLMError
-    from prompts import SystemPrompts
+from backend.llm import ChatRequest, LLMError
+from backend.prompts import SystemPrompts
 
 chat_bp = Blueprint("chat", __name__, url_prefix="/api")
 ALLOWED_HISTORY_ROLES = {"user", "assistant"}

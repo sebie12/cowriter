@@ -2,6 +2,13 @@ Apply migrations from the repository root with:
 
     backend/.venv/bin/flask --app backend.app db upgrade
 
+The existing revision history is already managed by Flask-Migrate; do not run
+`flask db init` or stamp an existing database without checking its schema.
+The default database is `instance/database.db` in the repository root. Set
+`COWRITER_DATABASE_URI` to use another database.
+
 Create a migration after changing models with:
 
     backend/.venv/bin/flask --app backend.app db migrate -m "describe the change"
+
+Review the generated revision before applying it with `db upgrade`.

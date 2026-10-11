@@ -94,13 +94,8 @@ class ProviderConnectionManager:
         raise ProviderConnectionError("Connection flow is not implemented for this provider auth method.", 501)
 
     def _default_connectors(self) -> list[ProviderConnector]:
-        if __package__ and __package__.startswith("backend."):
-            from .providers.Gemini import GeminiConnector
-            from .providers.Ollama import OllamaConnector
-            from .providers.Openai import OpenAIConnector
-        else:
-            from auth.providers.Gemini import GeminiConnector
-            from auth.providers.Ollama import OllamaConnector
-            from auth.providers.Openai import OpenAIConnector
+        from backend.auth.providers.Gemini import GeminiConnector
+        from backend.auth.providers.Ollama import OllamaConnector
+        from backend.auth.providers.Openai import OpenAIConnector
 
         return [GeminiConnector(), OpenAIConnector(), OllamaConnector()]

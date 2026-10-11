@@ -2,10 +2,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.exc import SQLAlchemyError
 
-if __package__ and __package__.startswith("backend."):
-    from ..database import ToolCall, db
-else:
-    from database import ToolCall, db
+from backend.database import ToolCall, db
 
 
 

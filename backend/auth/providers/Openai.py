@@ -5,28 +5,16 @@ from typing import Any
 
 import openai
 
-if __package__ and __package__.startswith("backend."):
-    from ..connections import ProviderConnectionError, ProviderConnectionResult, ProviderConnector
-    from ...llm import (
-        ChatRequest,
-        ChatResult,
-        LLMError,
-        ModelTurn,
-        ProviderConfig,
-        ToolCall,
-        ToolDefinition,
-    )
-else:
-    from auth.connections import ProviderConnectionError, ProviderConnectionResult, ProviderConnector
-    from llm import (
-        ChatRequest,
-        ChatResult,
-        LLMError,
-        ModelTurn,
-        ProviderConfig,
-        ToolCall,
-        ToolDefinition,
-    )
+from backend.auth.connections import ProviderConnectionError, ProviderConnectionResult, ProviderConnector
+from backend.llm import (
+    ChatRequest,
+    ChatResult,
+    LLMError,
+    ModelTurn,
+    ProviderConfig,
+    ToolCall,
+    ToolDefinition,
+)
 
 
 class OpenAIProvider:

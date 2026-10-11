@@ -7,34 +7,19 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-if __package__ and __package__.startswith("backend."):
-    from ..auth.connections import normalize_identifier
-    from ..auth.credentials import CredentialStore
-    from ..llm.contracts import (
-        ChatRequest,
-        ChatResult,
-        LLMError,
-        LLMProvider,
-        ModelTurn,
-        ProviderConfig,
-        ToolCall,
-        ToolDefinition,
-    )
-    from ..mcp_client import MCPClient
-else:
-    from auth.connections import normalize_identifier
-    from auth.credentials import CredentialStore
-    from llm.contracts import (
-        ChatRequest,
-        ChatResult,
-        LLMError,
-        LLMProvider,
-        ModelTurn,
-        ProviderConfig,
-        ToolCall,
-        ToolDefinition,
-    )
-    from mcp_client import MCPClient
+from backend.auth.connections import normalize_identifier
+from backend.auth.credentials import CredentialStore
+from backend.llm.contracts import (
+    ChatRequest,
+    ChatResult,
+    LLMError,
+    LLMProvider,
+    ModelTurn,
+    ProviderConfig,
+    ToolCall,
+    ToolDefinition,
+)
+from backend.mcp_client import MCPClient
 
 
 MAX_TOOL_ROUNDS = 5
@@ -423,11 +408,7 @@ class ChatService:
         raise LLMError(f"Unsupported chat provider: {provider_id}.", 400)
 
     def _default_providers(self) -> list[LLMProvider]:
-        if __package__ and __package__.startswith("backend."):
-            from ..auth.providers.Ollama import OllamaProvider
-            from ..auth.providers.Openai import OpenAIProvider
-        else:
-            from auth.providers.Ollama import OllamaProvider
-            from auth.providers.Openai import OpenAIProvider
+        from backend.auth.providers.Ollama import OllamaProvider
+        from backend.auth.providers.Openai import OpenAIProvider
 
         return [OpenAIProvider(), OllamaProvider()]

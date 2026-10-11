@@ -1,9 +1,6 @@
 from flask import Blueprint, jsonify
 
-if __package__ and __package__.startswith("backend."):
-    from ..database import AuthMethod
-else:
-    from database import AuthMethod
+from backend.database import AuthMethod
 
 auth_methods_bp = Blueprint(
     "auth_methods",

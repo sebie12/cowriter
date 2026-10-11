@@ -1,9 +1,6 @@
 from sqlalchemy.exc import IntegrityError
 
-if __package__ and __package__.startswith("backend."):
-    from ..database import Project, db
-else:
-    from database import Project, db
+from backend.database import Project, db
 
 
 class ProjectService:

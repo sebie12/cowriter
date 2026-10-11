@@ -1,9 +1,6 @@
 from pathlib import Path
 
-if __package__ and __package__.startswith("backend."):
-    from ..tools.files import _project_path, _project_root
-else:
-    from tools.files import _project_path, _project_root
+from backend.tools.files import _project_path, _project_root
 
 
 def list_files() -> list[str]:

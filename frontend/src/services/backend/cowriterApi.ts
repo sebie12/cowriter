@@ -273,8 +273,8 @@ export const cowriterApi: CowriterApi = {
   },
 
   async openProject(projectId, signal) {
-    await request(`/api/projects/${encodeURIComponent(projectId)}`, {
-      method: "PATCH",
+    await request(`/api/projects/${encodeURIComponent(projectId)}/open`, {
+      method: "POST",
       signal,
     });
   },
@@ -355,7 +355,7 @@ export const cowriterApi: CowriterApi = {
   },
 
   async listProviderConnections(signal) {
-    const connections = await requestJson<unknown>("/provider-connections/", { signal });
+    const connections = await requestJson<unknown>("/api/provider-connections/", { signal });
     if (!Array.isArray(connections)) {
       throw new Error("Backend returned an invalid provider connection list.");
     }
@@ -364,7 +364,7 @@ export const cowriterApi: CowriterApi = {
 
   async listModels(connectionId, signal) {
     const response = await requestJson<unknown>(
-      `/provider-connections/${encodeURIComponent(connectionId)}/models`,
+      `/api/provider-connections/${encodeURIComponent(connectionId)}/models`,
       { signal },
     );
     if (!isRecord(response) || typeof response.provider !== "string" || !Array.isArray(response.models)) {

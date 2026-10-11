@@ -21,7 +21,9 @@ The default base URL is `http://127.0.0.1:5000`. `VITE_API_BASE_URL` overrides i
 
 ## Required API
 
-These are the only backend routes called by the retained frontend. Paths reflect the existing Flask backend, including the current lack of an `/api` prefix on provider-connection routes.
+These are the backend routes called by the retained frontend. All application routes use the `/api` prefix.
+
+Project selection records its last-opened time with `POST /api/projects/:projectId/open` (no request body). Tool-call history is available at `GET /api/conversations/:conversationId/tool-calls`. Provider connections are created or reconnected only through `POST /api/providers/:providerId/connect`; direct `POST /api/provider-connections/` is not supported.
 
 ### Stream a chat response
 
@@ -131,7 +133,7 @@ Replaces:
 ### List provider connections
 
 ```text
-GET /provider-connections/
+GET /api/provider-connections/
 ```
 
 Purpose: populate configured accounts/endpoints and select the connection used for chat.
@@ -175,7 +177,7 @@ Replaces:
 ### List models for a connection
 
 ```text
-GET /provider-connections/:connectionId/models
+GET /api/provider-connections/:connectionId/models
 ```
 
 Purpose: populate the model selector for the active provider connection.
@@ -357,9 +359,9 @@ Project messages are not durable across an application reload. The existing `GET
 | `session.prompt` | `POST /api/chat` |
 | `session.cancel` | Abort the active `/api/chat` request |
 | `session/event` assistant text frames | NDJSON `delta`, `done`, and `error` events |
-| `session.models`, `llm.models` | `GET /provider-connections/:connectionId/models` |
+| `session.models`, `llm.models` | `GET /api/provider-connections/:connectionId/models` |
 | `llm.providers` and LLM adapter registry | `GET /api/providers/` |
-| Provider route/configuration state | `GET /provider-connections/` |
+| Provider route/configuration state | `GET /api/provider-connections/` |
 | Provider credential/settings writes | `POST /api/providers/:providerId/connect` |
 | Credential refresh during OAuth | OAuth status and callback capability |
 

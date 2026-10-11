@@ -2,20 +2,13 @@ import os
 from contextlib import nullcontext
 from threading import Lock
 
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, current_app, jsonify, request, url_for
 
-if __package__ and __package__.startswith("backend."):
-    from ..auth.connections import ProviderAuthorizationResult, ProviderConnectionError, ProviderConnectionManager, normalize_auth_method, normalize_identifier
-    from ..auth.credentials import CredentialStore
-    from ..auth.oauth import google_oauth_manager
-    from ..database import Provider, ProviderConnection, db
-    from .provider_connections import serialize_provider_connection
-else:
-    from auth.connections import ProviderAuthorizationResult, ProviderConnectionError, ProviderConnectionManager, normalize_auth_method, normalize_identifier
-    from auth.credentials import CredentialStore
-    from auth.oauth import google_oauth_manager
-    from database import Provider, ProviderConnection, db
-    from blueprints.provider_connections import serialize_provider_connection
+from backend.auth.connections import ProviderAuthorizationResult, ProviderConnectionError, ProviderConnectionManager, normalize_auth_method, normalize_identifier
+from backend.auth.credentials import CredentialStore
+from backend.auth.oauth import google_oauth_manager
+from backend.database import Provider, ProviderConnection, db
+from backend.blueprints.provider_connections import serialize_provider_connection
 
 providers_bp = Blueprint(
     "providers",
@@ -61,8 +54,9 @@ def save_provider_connection(result, auth_method_record):
         provider=result.provider_id,
         account_id=result.account_id,
     ).first()
+    created = connection is None
 
-    if connection is None:
+    if created:
         connection = ProviderConnection(
             provider=result.provider_id,
             account_id=result.account_id,
@@ -79,7 +73,7 @@ def save_provider_connection(result, auth_method_record):
         connection.status = result.status
 
     db.session.commit()
-    return connection
+    return connection, created
 
 def serialize_provider(provider):
     return {
@@ -159,12 +153,18 @@ def connect_provider(provider_name):
             }), 202
 
         try:
-            connection = save_provider_connection(result, auth_method_record)
+            connection, created = save_provider_connection(result, auth_method_record)
         except Exception:
             db.session.rollback()
             return jsonify({"error": "Could not save provider connection."}), 500
 
-        return jsonify(serialize_provider_connection(connection)), 201
+        response = jsonify(serialize_provider_connection(connection))
+        if created:
+            response.headers["Location"] = url_for(
+                "provider_connections.get_provider_connection",
+                connection_id=connection.id,
+            )
+        return response, 201 if created else 200
 
 
 @providers_bp.get("/<string:provider_name>/oauth/callback")

@@ -5,12 +5,8 @@ from google import genai
 from google.genai import errors
 from google.oauth2.credentials import Credentials
 
-if __package__ and __package__.startswith("backend."):
-    from ..connections import ProviderAuthorizationResult, ProviderConnectionError, ProviderConnectionResult, ProviderConnector
-    from ..oauth import GoogleOAuthManager, google_oauth_manager
-else:
-    from auth.connections import ProviderAuthorizationResult, ProviderConnectionError, ProviderConnectionResult, ProviderConnector
-    from auth.oauth import GoogleOAuthManager, google_oauth_manager
+from backend.auth.connections import ProviderAuthorizationResult, ProviderConnectionError, ProviderConnectionResult, ProviderConnector
+from backend.auth.oauth import GoogleOAuthManager, google_oauth_manager
 
 
 class GeminiProvider:
