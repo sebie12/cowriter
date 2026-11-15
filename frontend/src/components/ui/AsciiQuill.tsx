@@ -2,20 +2,22 @@ import { useEffect, useState } from "react";
 
 // The quill is drawn once; only the ink line beneath the nib animates.
 const QUILL = [
-  " ,",
-  " |`-._",
-  "  \\   `-.",
-  "   \\ \\   `.",
-  "   /  \\    \\",
-  "   \\   \\   _)",
-  "    \\   \\   \\",
-  "     `.  \\  |",
-  "       `-.\\ /",
-  "          `|",
-  "           |",
-  "           |",
+  "@ @@",
+  " @    @@",
+  "  @      @+",
+  "   @%      @",
+  "    @  *@   @",
+  "    *%   @   @@",
+  "      @   @    @",
+  "      @    @   @",
+  "       @   @=  @",
+  "         @= @ @",
+  "            @@",
+  "             @",
+  "              @",
+  "              @",
 ].join("\n");
-const NIB = "           '";
+const NIB = "              @";
 const INK = "~".repeat(18);
 
 const STEP_MS = 85;
