@@ -4,7 +4,6 @@ import { SendIcon } from "../ui/Icons";
 import { ModelSelector, type ProviderOption } from "./ModelSelector";
 
 export interface ComposerProps {
-  hero: boolean;
   isSending: boolean;
   canSend: boolean;
   providers: ProviderOption[];
@@ -21,7 +20,6 @@ export interface ComposerProps {
 }
 
 export function Composer({
-  hero,
   isSending,
   canSend,
   providers,
@@ -68,7 +66,7 @@ export function Composer({
 
   return (
     <form
-      className={`composer-wrap ${hero ? "hero" : ""}`}
+      className="composer-wrap"
       onSubmit={(event) => {
         event.preventDefault();
         send();

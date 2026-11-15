@@ -58,7 +58,7 @@ export function Landing({
           <h2 id="landing-menu-title">Recent projects</h2>
           {projects.length > FILTER_THRESHOLD && (
             <label className="landing-filter">
-              <SearchIcon size={13} aria-hidden="true" />
+              <SearchIcon size={14} aria-hidden="true" />
               <input
                 type="search"
                 value={query}
@@ -97,7 +97,7 @@ export function Landing({
         </nav>
 
         <button className="landing-new-project" type="button" onClick={onNewProject}>
-          <NewChatIcon size={14} aria-hidden="true" />
+          <NewChatIcon size={16} aria-hidden="true" />
           <span>New project</span>
         </button>
       </section>
