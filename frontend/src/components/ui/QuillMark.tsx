@@ -13,7 +13,9 @@ export function QuillMark({ className = "" }: { className?: string }) {
       aria-hidden="true"
     >
       <path d="M46 3 C 50 1 54 1 53 6 C 48 18 40 30 29 40 C 23 45 17 47 12 47 C 13 39 22 24 46 3 Z" />
-      <path d="M47 9 C 41 18 28 33 12 47 L 3 68" />
+      {/* One side of the feather is solid, the other left open. */}
+      <path fill="currentColor" d="M12 47 C 13 39 22 24 46 3 C 43 13 27 31 12 47 Z" />
+      <path d="M12 47 L 3 68" />
     </svg>
   );
 }
