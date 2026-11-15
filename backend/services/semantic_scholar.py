@@ -8,10 +8,8 @@ from urllib.request import Request, urlopen
 
 
 SEARCH_URL = "https://api.semanticscholar.org/graph/v1/paper/search"
-SEARCH_FIELDS = (
-    "paperId,title,year,authors,venue,abstract,tldr,citationCount,"
-    "externalIds,url,openAccessPdf"
-)
+BASE_FIELDS = "paperId,title,year,authors,venue,abstract,citationCount,externalIds,url,openAccessPdf"
+SEARCH_FIELDS = f"{BASE_FIELDS},tldr"
 MAX_QUERY_LENGTH = 300
 MAX_LIMIT = 50
 REQUEST_TIMEOUT_SECONDS = 20
@@ -83,26 +81,13 @@ class SemanticScholarClient:
         offset = max(0, offset)
         limit = min(max(1, limit), MAX_LIMIT)
 
-        url = f"{SEARCH_URL}?{urlencode({'query': query, 'offset': offset, 'limit': limit, 'fields': SEARCH_FIELDS})}"
-        headers = {"Accept": "application/json", "User-Agent": "cowriter"}
-        if self.api_key:
-            headers["x-api-key"] = self.api_key
-
         try:
-            with self.opener(Request(url, headers=headers), timeout=REQUEST_TIMEOUT_SECONDS) as response:
-                payload = json.loads(response.read().decode("utf-8"))
-        except HTTPError as error:
-            if error.code == 429:
-                raise ResearchError(
-                    "Semantic Scholar is rate limiting requests. Try again in a moment.", 429
-                ) from error
-            if 400 <= error.code < 500:
-                raise ResearchError("Semantic Scholar rejected the search request.", 400) from error
-            raise ResearchError("Semantic Scholar could not complete the search.", 502) from error
-        except (URLError, TimeoutError, OSError) as error:
-            raise ResearchError("Could not reach Semantic Scholar.", 502) from error
-        except (ValueError, UnicodeDecodeError) as error:
-            raise ResearchError("Semantic Scholar returned an unreadable response.", 502) from error
+            payload = self._fetch(query, offset, limit, SEARCH_FIELDS)
+        except ResearchError as error:
+            # TLDRs are not offered for every search mode; retry without them before giving up.
+            if error.status_code != 400:
+                raise
+            payload = self._fetch(query, offset, limit, BASE_FIELDS)
 
         if not isinstance(payload, dict):
             raise ResearchError("Semantic Scholar returned an unreadable response.", 502)
@@ -120,3 +105,25 @@ class SemanticScholarClient:
             "next": next_offset,
             "papers": papers,
         }
+
+    def _fetch(self, query: str, offset: int, limit: int, fields: str) -> Any:
+        url = f"{SEARCH_URL}?{urlencode({'query': query, 'offset': offset, 'limit': limit, 'fields': fields})}"
+        headers = {"Accept": "application/json", "User-Agent": "cowriter"}
+        if self.api_key:
+            headers["x-api-key"] = self.api_key
+
+        try:
+            with self.opener(Request(url, headers=headers), timeout=REQUEST_TIMEOUT_SECONDS) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except HTTPError as error:
+            if error.code == 429:
+                raise ResearchError(
+                    "Semantic Scholar is rate limiting requests. Try again in a moment.", 429
+                ) from error
+            if 400 <= error.code < 500:
+                raise ResearchError("Semantic Scholar rejected the search request.", 400) from error
+            raise ResearchError("Semantic Scholar could not complete the search.", 502) from error
+        except (URLError, TimeoutError, OSError) as error:
+            raise ResearchError("Could not reach Semantic Scholar.", 502) from error
+        except (ValueError, UnicodeDecodeError) as error:
+            raise ResearchError("Semantic Scholar returned an unreadable response.", 502) from error

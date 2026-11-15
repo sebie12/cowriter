@@ -67,6 +67,20 @@ class SemanticScholarClientTests(unittest.TestCase):
         self.assertIn("query=attention", captured[0].full_url)
         self.assertEqual(captured[0].get_header("X-api-key"), "secret")
 
+    def test_retries_without_tldr_when_fields_are_rejected(self):
+        requests = []
+
+        def opener(request, timeout):
+            requests.append(request.full_url)
+            if "tldr" in request.full_url:
+                raise HTTPError(request.full_url, 400, "Bad Request", {}, None)
+            return FakeResponse(json.dumps({"total": 0, "data": []}).encode("utf-8"))
+
+        result = SemanticScholarClient(api_key="", opener=opener).search("llm")
+        self.assertEqual(result["papers"], [])
+        self.assertEqual(len(requests), 2)
+        self.assertNotIn("tldr", requests[1])
+
     def test_normalize_handles_missing_optional_fields(self):
         paper = normalize_paper({"paperId": "p", "title": "T", "tldr": None, "authors": None})
         self.assertEqual(paper["authors"], [])
