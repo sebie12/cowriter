@@ -3,7 +3,7 @@ import type { ProviderModel } from "../../types/providers";
 import { SendIcon } from "../ui/Icons";
 import { ModelSelector, type ProviderOption } from "./ModelSelector";
 
-interface ComposerProps {
+export interface ComposerProps {
   hero: boolean;
   isSending: boolean;
   canSend: boolean;

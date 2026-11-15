@@ -45,14 +45,14 @@ class ChatService:
         self.tool_call_service = tool_call_service
 
     def chat(self, request: ChatRequest) -> ChatResult:
-        provider, config = self._resolve_provider(
+        provider, config = self.resolve_provider(
             connection_id=request.connection_id,
             requested_provider=request.provider,
         )
         return provider.chat(request, config)
 
     def stream_chat(self, request: ChatRequest) -> Iterator[dict[str, Any]]:
-        provider, config = self._resolve_provider(
+        provider, config = self.resolve_provider(
             connection_id=request.connection_id,
             requested_provider=request.provider,
         )
@@ -360,7 +360,7 @@ class ChatService:
         config = self._configuration(provider, connection)
         return provider_id, provider.list_models(config)
 
-    def _resolve_provider(
+    def resolve_provider(
         self,
         *,
         connection_id: int,

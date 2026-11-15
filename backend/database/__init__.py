@@ -8,6 +8,7 @@ from .models import (
     Project,
     Provider,
     ProviderConnection,
+    Reference,
     ToolCall,
 )
 
@@ -21,5 +22,6 @@ __all__ = [
     "Project",
     "Provider",
     "ProviderConnection",
+    "Reference",
     "ToolCall",
 ]

@@ -16,6 +16,7 @@ from backend.blueprints import (
     chat_bp,
     projects_bp,
     provider_connections_bp,
+    research_bp,
     providers_bp,
     tool_calls_bp,
 )
@@ -28,9 +29,16 @@ from backend.database.models import (
     Project,
     Provider,
     ProviderConnection,
+    Reference,
     ToolCall,
 )
-from backend.services import ChatService, ConversationService, ToolCallService
+from backend.services import (
+    ChatService,
+    ConversationService,
+    ProofreadService,
+    SemanticScholarClient,
+    ToolCallService,
+)
 
 app = Flask(__name__)
 
@@ -54,6 +62,8 @@ app.extensions["chat_service"] = ChatService(
     conversation_resolver=ConversationService().get_or_create_for_project,
     tool_call_service=ToolCallService(),
 )
+app.extensions["proofread_service"] = ProofreadService(app.extensions["chat_service"])
+app.extensions["research_client"] = SemanticScholarClient()
 
 # ===== BLUEPRINTS =====
 app.register_blueprint(provider_connections_bp)
@@ -61,6 +71,7 @@ app.register_blueprint(providers_bp)
 app.register_blueprint(auth_methods_bp)
 app.register_blueprint(chat_bp)
 app.register_blueprint(projects_bp)
+app.register_blueprint(research_bp)
 app.register_blueprint(tool_calls_bp)
 
 DEFAULT_ALLOWED_ORIGINS = {
@@ -83,7 +94,7 @@ def add_cors_headers(response):
     if origin in allowed_origins:
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Access-Control-Allow-Headers"] = "Content-Type"
-        response.headers["Access-Control-Allow-Methods"] = "GET,POST,DELETE,OPTIONS"
+        response.headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,DELETE,OPTIONS"
         response.headers.add("Vary", "Origin")
     return response
 
@@ -100,6 +111,7 @@ admin.add_view(ModelView(Project, db))
 admin.add_view(ModelView(Conversation, db))
 admin.add_view(ModelView(Message, db))
 admin.add_view(ModelView(ToolCall, db))
+admin.add_view(ModelView(Reference, db))
 
 if __name__ == "__main__":
     with app.app_context():
