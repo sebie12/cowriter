@@ -68,6 +68,7 @@ export function WorkTab({
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [filter, setFilter] = useState<ProofreadIssueType | null>(null);
+  const [essay, setEssay] = useState<{ file: string; truncated: boolean } | null>(null);
   const reviewControllerRef = useRef<AbortController | null>(null);
   const onIssueClickRef = useRef<(id: string) => void>(() => undefined);
   const projectId = project.id;
@@ -184,8 +185,9 @@ export function WorkTab({
         text: draftText.text,
       }, controller.signal);
 
+      setEssay(result.essayFile ? { file: result.essayFile, truncated: result.essayTruncated } : null);
       const highlighted: HighlightedIssue[] = [];
-      for (const issue of result) {
+      for (const issue of result.issues) {
         const range = rangeForOffsets(draftText, issue.start, issue.end);
         if (range) {
           highlighted.push({
@@ -197,7 +199,7 @@ export function WorkTab({
         }
       }
       const highlightedIds = new Set(highlighted.map((issue) => issue.id));
-      setIssues(result.filter((issue) => highlightedIds.has(issue.id)));
+      setIssues(result.issues.filter((issue) => highlightedIds.has(issue.id)));
       setHighlightedIssues(editor, highlighted);
       setStatus("reviewed");
     } catch (error) {
@@ -331,6 +333,8 @@ export function WorkTab({
           filter={filter}
           references={references.references}
           hasReferences={references.references.length > 0}
+          essay={essay}
+          hasProjectFolder={Boolean(project.path)}
           onFilterChange={setFilter}
           onHover={(id) => {
             if (editor) {

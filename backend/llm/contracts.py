@@ -25,6 +25,8 @@ class ChatRequest:
     project_id: int | None = None
     # When set, providers constrain the final answer to JSON (matching this schema where supported).
     json_schema: dict[str, Any] | None = field(default=None, hash=False, compare=False)
+    # Context window to request from providers that let callers size it (Ollama's num_ctx).
+    context_tokens: int | None = None
 
     def model_messages(self) -> list[dict[str, str]]:
         messages = [

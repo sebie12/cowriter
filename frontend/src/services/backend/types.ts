@@ -7,6 +7,7 @@ import type {
   Project,
   ProofreadIssue,
   ProofreadRequest,
+  ProofreadResult,
   Reference,
   ToolCall,
 } from "../../types";
@@ -35,7 +36,7 @@ export interface CowriterApi {
   listReferences(projectId: string, signal?: AbortSignal): Promise<Reference[]>;
   saveReference(projectId: string, paper: Paper, signal?: AbortSignal): Promise<Reference>;
   deleteReference(projectId: string, referenceId: number, signal?: AbortSignal): Promise<void>;
-  proofread(input: ProofreadRequest, signal?: AbortSignal): Promise<ProofreadIssue[]>;
+  proofread(input: ProofreadRequest, signal?: AbortSignal): Promise<ProofreadResult>;
   streamChat(
     input: ChatRequest,
     onEvent: (event: ChatStreamEvent) => void,

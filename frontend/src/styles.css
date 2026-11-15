@@ -2826,6 +2826,19 @@ textarea:focus-visible {
   line-height: 1.45;
 }
 
+.feedback-context {
+  margin: 0 16px 10px;
+  color: var(--ds-text-3);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.feedback-context code {
+  color: var(--ds-text-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+}
+
 .feedback-list {
   display: flex;
   flex: 1;

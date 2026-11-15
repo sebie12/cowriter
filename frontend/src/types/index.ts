@@ -118,6 +118,13 @@ export interface ProofreadIssue {
   referenceIds: number[];
 }
 
+export interface ProofreadResult {
+  issues: ProofreadIssue[];
+  /** Project-relative path of the essay the draft was compared with, if any. */
+  essayFile: string | null;
+  essayTruncated: boolean;
+}
+
 export interface ProofreadRequest {
   projectId: string;
   connectionId: number;

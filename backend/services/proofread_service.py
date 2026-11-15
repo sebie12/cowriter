@@ -9,6 +9,7 @@ from uuid import uuid4
 from backend.llm.contracts import ChatRequest, LLMError
 from backend.prompts import SystemPrompts
 from backend.services.chat_service import CONTEXT_FULL_MESSAGE, MAX_TOOL_ROUNDS, ChatService
+from backend.services.essay_context import load_essay
 
 
 ISSUE_TYPES = {"spelling", "grammar", "claim", "style"}
@@ -40,7 +41,19 @@ REVIEW_SCHEMA: dict[str, Any] = {
     "required": ["issues"],
 }
 
+# Room for the model's answer on top of the prompt, and bounds for the requested context window.
+ANSWER_TOKENS = 2048
+MIN_CONTEXT_TOKENS = 4096
+MAX_CONTEXT_TOKENS = 32768
+
 logger = logging.getLogger(__name__)
+
+
+def context_tokens_for(*texts: str) -> int:
+    """Rough window size for a prompt (about 3 characters per token for mixed-language text)."""
+    estimate = sum(len(text) for text in texts) // 3 + ANSWER_TOKENS
+    rounded = -(-estimate // 1024) * 1024
+    return max(MIN_CONTEXT_TOKENS, min(MAX_CONTEXT_TOKENS, rounded))
 
 
 class ProofreadService:
@@ -59,9 +72,10 @@ class ProofreadService:
         description: str | None = None,
         references: list[dict[str, Any]] | None = None,
         project_path: str | None = None,
-    ) -> list[dict[str, Any]]:
+    ) -> dict[str, Any]:
+        """Return {"issues": [...], "essay_file": str | None, "essay_truncated": bool}."""
         if not text.strip():
-            return []
+            return {"issues": [], "essay_file": None, "essay_truncated": False}
         if len(text) > MAX_TEXT_LENGTH:
             raise LLMError(f"The draft must be {MAX_TEXT_LENGTH} characters or fewer to review.", 413)
 
@@ -69,18 +83,32 @@ class ProofreadService:
             connection_id=connection_id,
             requested_provider=provider,
         )
+        essay = None
+        if project_path is not None:
+            try:
+                essay = load_essay(project_path)
+            except OSError:
+                logger.warning("Could not read the essay in %s", project_path, exc_info=True)
+
+        system_prompt = SystemPrompts.proofread(
+            description=description,
+            references=references or [],
+            can_read_project_files=project_path is not None,
+            essay=essay is not None,
+        )
+        message = SystemPrompts.proofread_message(
+            text, (essay.relative_path, essay.text, essay.truncated) if essay else None
+        )
         request = ChatRequest(
             connection_id=connection_id,
             provider=provider,
             model=model,
-            message=f"Review this draft:\n<<<\n{text}\n>>>",
-            system_prompt=SystemPrompts.proofread(
-                description=description,
-                references=references or [],
-                can_read_project_files=project_path is not None,
-            ),
+            message=message,
+            system_prompt=system_prompt,
             # Constrain the answer to valid JSON; small local models otherwise break it now and then.
             json_schema=REVIEW_SCHEMA,
+            # Local models default to small windows and silently drop the start of longer prompts.
+            context_tokens=context_tokens_for(system_prompt, message),
         )
 
         if project_path is None:
@@ -89,7 +117,11 @@ class ProofreadService:
             issues = self._run(self._review_with_tools(request, llm, config, project_path))
 
         valid_reference_ids = {reference["id"] for reference in references or []}
-        return locate_issues(text, issues, valid_reference_ids)
+        return {
+            "issues": locate_issues(text, issues, valid_reference_ids),
+            "essay_file": essay.relative_path if essay else None,
+            "essay_truncated": essay.truncated if essay else False,
+        }
 
     @staticmethod
     def _run(coroutine):
@@ -119,7 +151,11 @@ class ProofreadService:
                     {"role": "system", "content": request.system_prompt},
                     *request.model_messages(),
                 ]
-                context_window = ChatService.context_window(llm, config, request.model)
+                # Ollama reports its default window, but this request asks for a larger one.
+                context_window = max(
+                    ChatService.context_window(llm, config, request.model),
+                    request.context_tokens or 0,
+                )
                 for _ in range(MAX_TOOL_ROUNDS):
                     turn = llm.complete_chat(request, config, messages, tools)
                     if not turn.tool_calls:

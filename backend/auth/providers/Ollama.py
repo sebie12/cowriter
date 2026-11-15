@@ -60,6 +60,12 @@ def normalize_ollama_server_url(value: str) -> str:
     return f"{parsed.scheme}://{formatted_host}{port_suffix}"
 
 
+def _context_options(request: ChatRequest) -> dict[str, Any]:
+    if request.context_tokens is None:
+        return {}
+    return {"options": {"num_ctx": request.context_tokens}}
+
+
 class OllamaProvider:
     provider_ids = {"ollama"}
     credential_fields = ()
@@ -213,6 +219,7 @@ class OllamaProvider:
                     messages=messages,
                     stream=True,
                     **({"format": request.json_schema} if request.json_schema else {}),
+                    **_context_options(request),
                 )
                 has_content = False
                 for chunk in response:
@@ -277,6 +284,7 @@ class OllamaProvider:
                     stream=False,
                     # A format grammar would stop the model from emitting tool calls.
                     **({"format": request.json_schema} if request.json_schema and not tools else {}),
+                    **_context_options(request),
                 )
         except ollama.ResponseError as error:
             if error.status_code == 404:
