@@ -15,8 +15,9 @@ class FakeClient:
         self.chat_response = chat_response or ollama.ChatResponse(
             message=ollama.Message(role="assistant", content="Test response"),
         )
-        self.options = options
         self.list_called = False
+        self.show_response = options.pop("show_response", None)
+        self.options = options
         self.chat_call = None
 
     def __enter__(self):
@@ -30,6 +31,11 @@ class FakeClient:
         if self.request_error:
             raise self.request_error
         return self.list_response
+
+    def show(self, model):
+        if self.request_error:
+            raise self.request_error
+        return self.show_response
 
     def chat(self, **options):
         self.chat_call = options
@@ -221,6 +227,34 @@ class OllamaProviderTests(unittest.TestCase):
 
         with self.assertRaisesRegex(LLMError, "must run on this computer"):
             provider.list_models(ProviderConfig(endpoint_url="http://example.com:11434"))
+
+
+    def context_window_for(self, show_response=None, request_error=None):
+        def client_factory(**options):
+            return FakeClient(show_response=show_response, request_error=request_error, **options)
+
+        return OllamaProvider(client_factory).context_window(
+            ProviderConfig(endpoint_url="http://127.0.0.1:11434"), "llama3"
+        )
+
+    def test_context_window_uses_modelfile_num_ctx(self):
+        response = ollama.ShowResponse(
+            parameters="stop \"<|eot|>\"\nnum_ctx                        16384",
+            model_info={"llama.context_length": 131072},
+        )
+        self.assertEqual(self.context_window_for(response), 16384)
+
+    def test_context_window_caps_trained_length_at_ollama_default(self):
+        response = ollama.ShowResponse(model_info={"llama.context_length": 131072})
+        self.assertEqual(self.context_window_for(response), 4096)
+        small = ollama.ShowResponse(model_info={"llama.context_length": 2048})
+        self.assertEqual(self.context_window_for(small), 2048)
+
+    def test_context_window_falls_back_when_ollama_fails(self):
+        self.assertEqual(
+            self.context_window_for(request_error=ConnectionError("down")),
+            4096,
+        )
 
 
 if __name__ == "__main__":

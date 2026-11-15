@@ -6,9 +6,9 @@ import re
 from typing import Any
 from uuid import uuid4
 
-from backend.llm.contracts import ChatRequest, LLMError, ToolDefinition
+from backend.llm.contracts import ChatRequest, LLMError
 from backend.prompts import SystemPrompts
-from backend.services.chat_service import MAX_TOOL_ROUNDS, ChatService
+from backend.services.chat_service import CONTEXT_FULL_MESSAGE, MAX_TOOL_ROUNDS, ChatService
 
 
 ISSUE_TYPES = {"spelling", "grammar", "claim", "style"}
@@ -111,14 +111,7 @@ class ProofreadService:
         """
         try:
             async with self.chat_service.mcp_client_factory(project_path) as client:
-                tools = tuple(
-                    ToolDefinition(
-                        name=tool.name,
-                        description=tool.description or "",
-                        input_schema=tool.input_schema,
-                    )
-                    for tool in await client.list_tools()
-                )
+                tools = ChatService.tool_definitions(await client.list_tools())
                 if not tools:
                     return parse_review(llm.chat(request, config).message)
 
@@ -126,6 +119,7 @@ class ProofreadService:
                     {"role": "system", "content": request.system_prompt},
                     *request.model_messages(),
                 ]
+                context_window = ChatService.context_window(llm, config, request.model)
                 for _ in range(MAX_TOOL_ROUNDS):
                     turn = llm.complete_chat(request, config, messages, tools)
                     if not turn.tool_calls:
@@ -136,13 +130,15 @@ class ProofreadService:
                             break
                     messages.append(ChatService._assistant_tool_message(turn))
                     for call in turn.tool_calls:
-                        result = await client.call_tool(call.name, call.arguments)
-                        messages.append({
-                            "role": "tool",
-                            "tool_call_id": call.id,
-                            "tool_name": call.name,
-                            "content": ChatService._serialize_mcp_result(result),
-                        })
+                        arguments = ChatService.budget_tool_arguments(
+                            call, messages, tools, context_window
+                        )
+                        if arguments is None:
+                            content = CONTEXT_FULL_MESSAGE
+                        else:
+                            result = await client.call_tool(call.name, arguments)
+                            content = ChatService._serialize_mcp_result(result)
+                        messages.append(ChatService._tool_message(call, content))
         except LLMError:
             raise
         except Exception as error:

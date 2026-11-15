@@ -1,6 +1,7 @@
 import ipaddress
 import json
 import os
+import re
 from collections.abc import Iterator
 from typing import Any
 from urllib.parse import urlsplit
@@ -19,6 +20,8 @@ from backend.llm import (
 )
 
 DEFAULT_OLLAMA_SERVER_URL = "http://127.0.0.1:11434"
+# Ollama runs models with this context unless the Modelfile sets num_ctx.
+DEFAULT_OLLAMA_CONTEXT = 4096
 
 
 def normalize_ollama_server_url(value: str) -> str:
@@ -147,6 +150,31 @@ class OllamaProvider:
             },
             key=str.casefold,
         )
+
+    def context_window(self, config: ProviderConfig, model: str) -> int:
+        try:
+            normalized_url = normalize_ollama_server_url(config.endpoint_url or "")
+            with self.client_factory(
+                host=normalized_url,
+                timeout=5.0,
+                follow_redirects=False,
+                trust_env=False,
+            ) as client:
+                response = client.show(model)
+        except Exception:
+            return DEFAULT_OLLAMA_CONTEXT
+
+        match = re.search(r"^num_ctx\s+(\d+)", response.parameters or "", re.MULTILINE)
+        if match:
+            return int(match.group(1))
+        trained_lengths = [
+            value
+            for key, value in (response.modelinfo or {}).items()
+            if key.endswith(".context_length") and isinstance(value, int) and value > 0
+        ]
+        if trained_lengths:
+            return min(trained_lengths[0], DEFAULT_OLLAMA_CONTEXT)
+        return DEFAULT_OLLAMA_CONTEXT
 
     def chat(
         self,

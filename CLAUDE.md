@@ -73,6 +73,7 @@ No linter, formatter, frontend tests, or CI are configured — don't invent comm
 - Response is NDJSON (`application/x-ndjson`): `assistant_start` / `assistant_delta` / `assistant_end`, `tool_call` (serialized record), then `done` or `error`.
 - **Proofreading** (`POST /api/projects/:id/proofread` → `services/proofread_service.py`) reuses `ChatService.resolve_provider` and the MCP tools (without persisting ToolCall rows). The model returns JSON quotes, and the backend computes the offsets. **Research** (`GET /api/research/search` → `services/openalex.py`) uses stdlib `urllib` and an optional `OPENALEX_API_KEY`. Both services live in `app.extensions` (`proofread_service`, `research_client`), so tests can swap in fakes.
 - MCP tools (`tools/files.py`: read-only `read_file`, `list_files`) are sandboxed to the project root — reject absolute paths and anything resolving outside it.
+- `read_file` converts `.tex` files to plain prose with pypandoc (`pypandoc_binary` bundles pandoc) and paginates (`offset`/`next_offset`). The tool loops set its `max_chars` from the model's context window (`provider.context_window`, chars ≈ tokens × 4) via `ChatService.budget_tool_arguments`; the model never sees or controls `max_chars`.
 
 ## Provider integration boundary
 

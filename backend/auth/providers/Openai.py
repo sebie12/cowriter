@@ -16,6 +16,18 @@ from backend.llm import (
     ToolDefinition,
 )
 
+# The models API doesn't report context sizes; longest matching prefix wins.
+OPENAI_CONTEXT_WINDOWS = {
+    "gpt-4.1": 1_047_576,
+    "gpt-5": 400_000,
+    "gpt-4o": 128_000,
+    "gpt-4-turbo": 128_000,
+    "o1": 200_000,
+    "o3": 200_000,
+    "o4": 200_000,
+}
+DEFAULT_OPENAI_CONTEXT = 128_000
+
 
 class OpenAIProvider:
     provider_ids = {"openai"}
@@ -82,6 +94,12 @@ class OpenAIProvider:
             },
             key=str.casefold,
         )
+
+    def context_window(self, config: ProviderConfig, model: str) -> int:
+        prefixes = [prefix for prefix in OPENAI_CONTEXT_WINDOWS if model.startswith(prefix)]
+        if not prefixes:
+            return DEFAULT_OPENAI_CONTEXT
+        return OPENAI_CONTEXT_WINDOWS[max(prefixes, key=len)]
 
     def chat(self, request: ChatRequest, config: ProviderConfig) -> ChatResult:
         return ChatResult(message="".join(self.stream_chat(request, config)))

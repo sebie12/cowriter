@@ -102,7 +102,9 @@ class SystemPrompts:
         if can_read_project_files:
             sections.append(
                 "You may call the list_files and read_file tools to read the project's files when they "
-                "help you check a claim or the project's terminology. Do not call them otherwise."
+                "help you check a claim or the project's terminology. Do not call them otherwise. "
+                "read_file returns long files in parts; when truncated is true, call it again with "
+                "offset set to next_offset if you need the rest."
             )
         sections.append(
             "Respond with JSON only, no prose and no Markdown, in exactly this shape:\n"

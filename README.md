@@ -144,7 +144,7 @@ frontend/src/
 - Chat messages are not persisted: `POST /api/chat` does not save user or assistant messages, so conversation text is lost on reload. Tool calls are persisted.
 - Chat responses come from the connected OpenAI, Google Gemini, or Ollama model through `POST /api/chat`.
 - The current chat transport supports text messages only; attachment controls are omitted until the backend supports them.
-- Projects with a filesystem path expose read-only `read_file` and `list_files` tools to the selected model through the bundled MCP server. Project file browsing and LaTeX editing run through Tauri and only work in the desktop app.
+- Projects with a filesystem path expose read-only `read_file` and `list_files` tools to the selected model through the bundled MCP server. `read_file` strips LaTeX markup and only returns as much text as fits in the model's context window. Project file browsing and LaTeX editing run through Tauri and only work in the desktop app.
 - No Anthropic, LangChain, LangGraph, embeddings, or RAG integration is included.
 
 ## Future Direction

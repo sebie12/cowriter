@@ -84,7 +84,7 @@ An error before streaming starts is a non-2xx JSON response:
 
 Streaming: required, using NDJSON over the Fetch response body. SSE and WebSocket support are not required.
 
-When the selected project has a filesystem path, the backend starts the bundled MCP server for that project, sends its `read_file` and `list_files` definitions to the model, and runs up to five tool rounds. Each tool call is persisted to the project's conversation and reported through `tool_call` events. In tool-enabled turns, model text is not streamed token by token: each model turn's text is sent as one complete `assistant_start`/`assistant_delta`/`assistant_end` segment. Paths accepted by the MCP tools are relative to the selected project root and cannot escape it.
+When the selected project has a filesystem path, the backend starts the bundled MCP server for that project, sends its `read_file` and `list_files` definitions to the model, and runs up to five tool rounds. Each tool call is persisted to the project's conversation and reported through `tool_call` events. In tool-enabled turns, model text is not streamed token by token: each model turn's text is sent as one complete `assistant_start`/`assistant_delta`/`assistant_end` segment. Paths accepted by the MCP tools are relative to the selected project root and cannot escape it. `read_file` returns `.tex` files as plain text (converted with pandoc) and returns long files in pages (`content`, `offset`, `next_offset`, `total_chars`, `truncated`). The backend limits each page to the context the selected model has left, and if no context is left the call is recorded as `failed` without reading the file.
 
 Required: yes.
 
