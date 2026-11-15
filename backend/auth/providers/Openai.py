@@ -103,6 +103,7 @@ class OpenAIProvider:
                     model=request.model,
                     messages=messages,
                     stream=True,
+                    **({"response_format": {"type": "json_object"}} if request.json_schema else {}),
                 )
                 has_content = False
                 for chunk in response:
@@ -142,11 +143,16 @@ class OpenAIProvider:
             openai_messages.append(converted)
         try:
             with self.client_factory(api_key=api_key, timeout=120.0, max_retries=0) as client:
+                options: dict[str, Any] = {}
+                if tools:
+                    options["tools"] = [tool.model_payload() for tool in tools]
+                elif request.json_schema:
+                    options["response_format"] = {"type": "json_object"}
                 response = client.chat.completions.create(
                     model=request.model,
                     messages=openai_messages,
-                    tools=[tool.model_payload() for tool in tools],
                     stream=False,
+                    **options,
                 )
         except openai.AuthenticationError as error:
             raise LLMError("OpenAI credentials are invalid.", 401) from error

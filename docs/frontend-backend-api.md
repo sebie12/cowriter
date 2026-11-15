@@ -219,7 +219,7 @@ The selected model reviews `text` using:
 - its saved references (title, authors, year, and TLDR or abstract excerpt)
 - the project's files, via the read-only MCP tools, when the project has a folder. These tool calls are not recorded in the chat history.
 
-The model has to reply with JSON. The backend finds each quoted passage in `text` and computes the character offsets itself. Issues whose quote can't be found are dropped.
+The model's reply is constrained to JSON matching a schema (Ollama `format`, OpenAI JSON mode). Constraints can't be combined with tool calls, so when the project has a folder the tool rounds run unconstrained. If the last answer isn't valid JSON, one more turn without tools asks for it again under the constraint. Replies that still can't be parsed are logged as a warning on the server. The backend finds each quoted passage in `text` and computes the character offsets itself. Issues whose quote can't be found are dropped.
 
 Response:
 
