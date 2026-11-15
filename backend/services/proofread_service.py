@@ -1,6 +1,7 @@
 import asyncio
 import difflib
 import json
+import logging
 import re
 from typing import Any
 from uuid import uuid4
@@ -14,6 +15,32 @@ ISSUE_TYPES = {"spelling", "grammar", "claim", "style"}
 MAX_TEXT_LENGTH = 60_000
 MAX_ISSUES = 200
 UNREADABLE_REVIEW = "The model returned an unreadable review; try again or a larger model."
+FINALIZE_INSTRUCTION = (
+    "Now give your final review of the draft as a single JSON object in the required shape "
+    '({"issues": [...]}), with no other text.'
+)
+REVIEW_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "issues": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "type": {"type": "string", "enum": sorted(ISSUE_TYPES)},
+                    "quote": {"type": "string"},
+                    "explanation": {"type": "string"},
+                    "suggestion": {"type": ["string", "null"]},
+                    "reference_ids": {"type": "array", "items": {"type": "integer"}},
+                },
+                "required": ["type", "quote", "explanation", "suggestion", "reference_ids"],
+            },
+        },
+    },
+    "required": ["issues"],
+}
+
+logger = logging.getLogger(__name__)
 
 
 class ProofreadService:
@@ -52,15 +79,17 @@ class ProofreadService:
                 references=references or [],
                 can_read_project_files=project_path is not None,
             ),
+            # Constrain the answer to valid JSON; small local models otherwise break it now and then.
+            json_schema=REVIEW_SCHEMA,
         )
 
         if project_path is None:
-            content = llm.chat(request, config).message
+            issues = parse_review(llm.chat(request, config).message)
         else:
-            content = self._run(self._review_with_tools(request, llm, config, project_path))
+            issues = self._run(self._review_with_tools(request, llm, config, project_path))
 
         valid_reference_ids = {reference["id"] for reference in references or []}
-        return locate_issues(text, parse_review(content), valid_reference_ids)
+        return locate_issues(text, issues, valid_reference_ids)
 
     @staticmethod
     def _run(coroutine):
@@ -73,7 +102,13 @@ class ProofreadService:
             finally:
                 loop.close()
 
-    async def _review_with_tools(self, request, llm, config, project_path) -> str:
+    async def _review_with_tools(self, request, llm, config, project_path) -> list[dict[str, Any]]:
+        """Let the model read project files, then make sure the final answer is valid JSON.
+
+        Structured output and tool calls can't be combined, so tool rounds run unconstrained.
+        If the model's last answer isn't readable JSON (or it keeps calling tools), one more
+        turn without tools asks for the final review under the JSON constraint.
+        """
         try:
             async with self.chat_service.mcp_client_factory(project_path) as client:
                 tools = tuple(
@@ -85,7 +120,7 @@ class ProofreadService:
                     for tool in await client.list_tools()
                 )
                 if not tools:
-                    return llm.chat(request, config).message
+                    return parse_review(llm.chat(request, config).message)
 
                 messages: list[dict[str, Any]] = [
                     {"role": "system", "content": request.system_prompt},
@@ -94,7 +129,11 @@ class ProofreadService:
                 for _ in range(MAX_TOOL_ROUNDS):
                     turn = llm.complete_chat(request, config, messages, tools)
                     if not turn.tool_calls:
-                        return turn.content
+                        try:
+                            return parse_review(turn.content)
+                        except LLMError:
+                            messages.append({"role": "assistant", "content": turn.content})
+                            break
                     messages.append(ChatService._assistant_tool_message(turn))
                     for call in turn.tool_calls:
                         result = await client.call_tool(call.name, call.arguments)
@@ -108,7 +147,10 @@ class ProofreadService:
             raise
         except Exception as error:
             raise LLMError("Could not communicate with the project tools.", 502) from error
-        raise LLMError("The review needed too many file lookups. Try again.", 502)
+
+        messages.append({"role": "user", "content": FINALIZE_INSTRUCTION})
+        final_turn = llm.complete_chat(request, config, messages, ())
+        return parse_review(final_turn.content)
 
 
 def parse_review(content: str) -> list[dict[str, Any]]:
@@ -117,14 +159,15 @@ def parse_review(content: str) -> list[dict[str, Any]]:
         raise LLMError(UNREADABLE_REVIEW, 502)
     start = content.find("{")
     end = content.rfind("}")
-    if start < 0 or end < start:
-        raise LLMError(UNREADABLE_REVIEW, 502)
-    try:
-        payload = json.loads(content[start:end + 1])
-    except ValueError as error:
-        raise LLMError(UNREADABLE_REVIEW, 502) from error
+    payload = None
+    if 0 <= start < end:
+        try:
+            payload = json.loads(content[start:end + 1])
+        except ValueError:
+            payload = None
     issues = payload.get("issues") if isinstance(payload, dict) else None
     if not isinstance(issues, list):
+        logger.warning("Unreadable proofreading reply: %r", content[:2000])
         raise LLMError(UNREADABLE_REVIEW, 502)
     return [issue for issue in issues if isinstance(issue, dict)]
 

@@ -5,8 +5,13 @@ from flask import Flask
 
 from backend.blueprints.projects import projects_bp
 from backend.database import Project, Reference, db
-from backend.llm.contracts import ChatResult, LLMError
-from backend.services.proofread_service import ProofreadService, locate_issues, parse_review
+from backend.llm.contracts import ChatResult, LLMError, ModelTurn, ToolCall
+from backend.services.proofread_service import (
+    REVIEW_SCHEMA,
+    ProofreadService,
+    locate_issues,
+    parse_review,
+)
 
 
 class FakeProvider:
@@ -20,8 +25,9 @@ class FakeProvider:
 
 
 class FakeChatService:
-    def __init__(self, provider):
+    def __init__(self, provider, mcp_client_factory=None):
         self.provider = provider
+        self.mcp_client_factory = mcp_client_factory
 
     def resolve_provider(self, *, connection_id, requested_provider):
         return self.provider, object()
@@ -83,6 +89,82 @@ class ProofreadParsingTests(unittest.TestCase):
         self.assertEqual(issues[0]["quote"], "long\nsentence")
 
 
+class FakeTool:
+    name = "read_file"
+    description = "Read a file"
+    input_schema = {"type": "object"}
+
+
+class FakeMCPClient:
+    def __init__(self):
+        self.calls = []
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        return False
+
+    async def list_tools(self):
+        return [FakeTool()]
+
+    async def call_tool(self, name, arguments):
+        self.calls.append((name, arguments))
+        return ChatResult(message="file contents")
+
+
+class ToolLoopProvider:
+    """Replays scripted turns and records whether each call allowed tools."""
+
+    def __init__(self, turns):
+        self.turns = list(turns)
+        self.calls = []
+
+    def complete_chat(self, request, config, messages, tools):
+        self.calls.append({"tools": tools, "schema": request.json_schema, "messages": list(messages)})
+        return self.turns.pop(0)
+
+
+class ProofreadToolLoopTests(unittest.TestCase):
+    def make_service(self, provider):
+        client = FakeMCPClient()
+        return ProofreadService(FakeChatService(provider, lambda path: client)), client
+
+    def test_reads_files_then_parses_final_answer(self):
+        provider = ToolLoopProvider([
+            ModelTurn(content="", tool_calls=(ToolCall(id="c1", name="read_file", arguments={"path": "a.tex"}),)),
+            ModelTurn(content=review_reply({"type": "spelling", "quote": "teh", "suggestion": "the"})),
+        ])
+        service, client = self.make_service(provider)
+        issues = service.review(connection_id=1, provider="ollama", model="m", text="teh end", project_path="/p")
+        self.assertEqual(issues[0]["quote"], "teh")
+        self.assertEqual(client.calls, [("read_file", {"path": "a.tex"})])
+        self.assertEqual(len(provider.calls), 2)
+
+    def test_unreadable_final_answer_is_repaired_under_json_constraint(self):
+        provider = ToolLoopProvider([
+            ModelTurn(content='{"issues": [{"type": "claim", "explanation": "a "quoted" word"'),
+            ModelTurn(content=review_reply({"type": "spelling", "quote": "teh", "suggestion": "the"})),
+        ])
+        service, _ = self.make_service(provider)
+        issues = service.review(connection_id=1, provider="ollama", model="m", text="teh end", project_path="/p")
+        self.assertEqual(issues[0]["type"], "spelling")
+        repair_call = provider.calls[-1]
+        self.assertEqual(repair_call["tools"], ())
+        self.assertEqual(repair_call["schema"], REVIEW_SCHEMA)
+        self.assertIn("JSON", repair_call["messages"][-1]["content"])
+
+    def test_too_many_tool_rounds_ends_with_a_constrained_answer(self):
+        call = ModelTurn(content="", tool_calls=(ToolCall(id="c", name="read_file", arguments={}),))
+        provider = ToolLoopProvider([call] * 5 + [ModelTurn(content=review_reply())])
+        service, _ = self.make_service(provider)
+        self.assertEqual(
+            service.review(connection_id=1, provider="ollama", model="m", text="fine", project_path="/p"),
+            [],
+        )
+        self.assertEqual(provider.calls[-1]["tools"], ())
+
+
 class ProofreadServiceTests(unittest.TestCase):
     def test_review_without_project_path_uses_plain_chat(self):
         provider = FakeProvider(review_reply({"type": "spelling", "quote": "teh", "suggestion": "the"}))
@@ -96,6 +178,7 @@ class ProofreadServiceTests(unittest.TestCase):
         )
         self.assertEqual(issues[0]["start"], 0)
         self.assertIn("[id=4] Paper (2020)", provider.requests[0].system_prompt)
+        self.assertEqual(provider.requests[0].json_schema, REVIEW_SCHEMA)
 
     def test_empty_text_skips_the_model(self):
         provider = FakeProvider("")

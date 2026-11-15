@@ -184,6 +184,7 @@ class OllamaProvider:
                     model=request.model,
                     messages=messages,
                     stream=True,
+                    **({"format": request.json_schema} if request.json_schema else {}),
                 )
                 has_content = False
                 for chunk in response:
@@ -246,6 +247,8 @@ class OllamaProvider:
                     messages=ollama_messages,
                     tools=[tool.model_payload() for tool in tools],
                     stream=False,
+                    # A format grammar would stop the model from emitting tool calls.
+                    **({"format": request.json_schema} if request.json_schema and not tools else {}),
                 )
         except ollama.ResponseError as error:
             if error.status_code == 404:

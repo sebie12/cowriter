@@ -23,6 +23,8 @@ class ChatRequest:
     system_prompt: str | None = None
     history: tuple[dict[str, str], ...] = ()
     project_id: int | None = None
+    # When set, providers constrain the final answer to JSON (matching this schema where supported).
+    json_schema: dict[str, Any] | None = field(default=None, hash=False, compare=False)
 
     def model_messages(self) -> list[dict[str, str]]:
         messages = [
