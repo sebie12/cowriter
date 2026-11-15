@@ -151,6 +151,99 @@ POST /api/projects/:projectId/open
 
 No request body. Updates `opened_at` and returns the project, or `404`.
 
+### Save a project draft
+
+```text
+PUT /api/projects/:projectId/draft
+```
+
+Request: `{ "draft": { "type": "doc", ... } | null }`, the TipTap/ProseMirror JSON of the Work tab draft. The frontend debounces saves (800 ms) and flushes them when the user switches projects. Project objects include the saved `draft` (or `null`).
+
+Response: `200` with `{ "draft", "updated_at" }`. `400` if `draft` is missing or not a `doc` node, `413` if the body is larger than 2 MB, `404` for an unknown project.
+
+### Search papers
+
+```text
+GET /api/research/search?q=<query>&offset=<n>
+```
+
+Proxies the Semantic Scholar Graph API (`/graph/v1/paper/search`, 20 results per page). The backend sends `SEMANTIC_SCHOLAR_API_KEY` as `x-api-key` when that variable is set. Without a key, requests share Semantic Scholar's public rate limit and often get `429`.
+
+Response:
+
+```json
+{
+  "total": 1234,
+  "offset": 0,
+  "next": 20,
+  "papers": [
+    {
+      "paper_id": "204e3073870fae3d05bcbc2f6a8e263d9b72e776",
+      "title": "Attention Is All You Need",
+      "year": 2017,
+      "authors": ["Ashish Vaswani", "Noam Shazeer"],
+      "venue": "Neural Information Processing Systems",
+      "abstract": "...",
+      "tldr": "...",
+      "citation_count": 100000,
+      "doi": "10.48550/arXiv.1706.03762",
+      "url": "https://www.semanticscholar.org/paper/...",
+      "pdf_url": "https://arxiv.org/pdf/1706.03762"
+    }
+  ]
+}
+```
+
+`next` is `null` on the last page. Errors: `400` for an empty or over-300-character query or an invalid offset, `429` when Semantic Scholar rate-limits, and `502` when it is unreachable.
+
+### Saved references
+
+```text
+GET    /api/projects/:projectId/references
+POST   /api/projects/:projectId/references
+DELETE /api/projects/:projectId/references/:referenceId
+```
+
+A reference is a paper (the same fields as a search result) plus `id`, `project_id` and `created_at`. `POST` takes a paper object and returns `201` with the reference. It returns `409` with `{ "error", "reference" }` if that `paper_id` is already saved for the project. `DELETE` returns `204`, or `404` if the reference belongs to another project. References are deleted along with their project.
+
+### Proofread a draft
+
+```text
+POST /api/projects/:projectId/proofread
+```
+
+Request: `{ "connection_id": 1, "provider": "ollama", "model": "qwen3:8b", "text": "<plain text of the draft>" }`.
+
+The selected model reviews `text` using:
+- the project's writing instructions
+- its saved references (title, authors, year, and TLDR or abstract excerpt)
+- the project's files, via the read-only MCP tools, when the project has a folder. These tool calls are not recorded in the chat history.
+
+The model has to reply with JSON. The backend finds each quoted passage in `text` and computes the character offsets itself. Issues whose quote can't be found are dropped.
+
+Response:
+
+```json
+{
+  "issues": [
+    {
+      "id": "issue-…",
+      "type": "spelling | grammar | claim | style",
+      "start": 0,
+      "end": 3,
+      "quote": "teh",
+      "explanation": "Misspelling of “the”.",
+      "suggestion": "the",
+      "reference_ids": []
+    }
+  ]
+}
+```
+
+`suggestion` is replacement text for `quote`, or `null`. `reference_ids` only contains ids of the project's saved references. Errors: `400` for validation, `413` for drafts over 60,000 characters, provider errors with their own status, and `502` when the model's reply is not valid JSON.
+
+The frontend builds `text` by joining text blocks with a blank line (`"\n\n"`), the same way as ProseMirror `textBetween`, and maps the offsets back to editor positions. The editor is read-only while a review runs.
+
 ### List supported providers
 
 ```text
@@ -406,8 +499,9 @@ Replaces: the callback/credential completion portion of Harness provider onboard
 
 The following retained features do not require backend endpoints:
 
-- Reading, listing, and saving files inside a project directory use Tauri commands (`frontend/src/services/projectFilesystem.ts` → `src-tauri/src/main.rs`), not Flask, and are only available in the desktop app.
-- Active provider connection and per-connection model preference use `localStorage` key `cowriter.chat-preferences.v1`.
+- Listing files inside a project directory uses Tauri commands (`frontend/src/services/projectFilesystem.ts` → `src-tauri/src/main.rs`), not Flask, and is only available in the desktop app.
+- Active provider connection and per-connection model preference use `localStorage` key `cowriter.chat-preferences.v1`. The Work tab's review uses the same selection.
+- Proofreading highlights, filters, Apply and Dismiss are client state. Applying a suggestion edits the draft, and any edit to a highlighted passage removes its issue.
 - Message copy uses the browser clipboard API.
 - Stop response uses `AbortController` on the active `/api/chat` request.
 - Conversation zoom, bottom-follow, jump-to-latest, streaming status, and error/stopped presentation are client behavior.

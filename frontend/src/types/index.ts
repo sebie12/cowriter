@@ -26,12 +26,19 @@ export interface ToolCall {
 
 export type ConversationItem = Message | ToolCall;
 
+/** TipTap/ProseMirror document JSON as stored by the backend. */
+export interface DraftDocument {
+  type: "doc";
+  content?: unknown[];
+  [key: string]: unknown;
+}
+
 export interface Project {
   id: string;
   title: string;
   path: string | null;
   writingContext: string | null;
-  writingContent: string;
+  draft: DraftDocument | null;
   createdAt: string;
   updatedAt: string;
   conversationItems: ConversationItem[];
@@ -70,4 +77,51 @@ export interface ChatRequest {
   projectDescription?: string;
   systemPrompt?: string;
   history?: Array<Pick<Message, "role" | "content">>;
+}
+
+export interface Paper {
+  paperId: string;
+  title: string;
+  year: number | null;
+  authors: string[];
+  venue: string | null;
+  abstract: string | null;
+  tldr: string | null;
+  citationCount: number | null;
+  doi: string | null;
+  url: string | null;
+  pdfUrl: string | null;
+}
+
+export interface PaperSearchResult {
+  total: number;
+  offset: number;
+  next: number | null;
+  papers: Paper[];
+}
+
+export interface Reference extends Paper {
+  id: number;
+  createdAt: string;
+}
+
+export type ProofreadIssueType = "spelling" | "grammar" | "claim" | "style";
+
+export interface ProofreadIssue {
+  id: string;
+  type: ProofreadIssueType;
+  start: number;
+  end: number;
+  quote: string;
+  explanation: string;
+  suggestion: string | null;
+  referenceIds: number[];
+}
+
+export interface ProofreadRequest {
+  projectId: string;
+  connectionId: number;
+  provider: string;
+  model: string;
+  text: string;
 }

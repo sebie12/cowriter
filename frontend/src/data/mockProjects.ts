@@ -8,7 +8,7 @@ export const mockProjects: Project[] = [
     title: "Modernism research paper",
     path: null,
     writingContext: null,
-    writingContent: "",
+    draft: null,
     createdAt: now,
     updatedAt: now,
     conversationItems: [
@@ -34,7 +34,7 @@ export const mockProjects: Project[] = [
     title: "History essay",
     path: null,
     writingContext: null,
-    writingContent: "",
+    draft: null,
     createdAt: now,
     updatedAt: now,
     conversationItems: [
@@ -60,7 +60,7 @@ export const mockProjects: Project[] = [
     title: "Short story notes",
     path: null,
     writingContext: null,
-    writingContent: "",
+    draft: null,
     createdAt: now,
     updatedAt: now,
     conversationItems: [
@@ -79,7 +79,7 @@ export const mockProjects: Project[] = [
     title: "Literature review",
     path: null,
     writingContext: null,
-    writingContent: "",
+    draft: null,
     createdAt: now,
     updatedAt: now,
     conversationItems: [],

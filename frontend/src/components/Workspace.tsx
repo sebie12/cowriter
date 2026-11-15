@@ -1,17 +1,19 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import cowriterPet from "../assets/icons/cowriter_pet.svg";
-import type { ProjectFilesystemService } from "../services/projectFilesystem";
-import type { Project } from "../types";
+import { useReferences } from "../hooks/useReferences";
+import type { CowriterApi } from "../services/backend/types";
+import type { DraftDocument, Project } from "../types";
 import type { ProviderModel } from "../types/providers";
+import { ChatTab } from "./chat/ChatTab";
 import { Composer } from "./composer/Composer";
 import type { ProviderOption } from "./composer/ModelSelector";
-import { Conversation } from "./Conversation";
-import { ProjectSourceEditor } from "./projects/ProjectSourceEditor";
-import { WritingEditor } from "./WritingEditor";
+import { ResearchTab } from "./research/ResearchTab";
+import { WorkTab, type ProofreadTarget } from "./work/WorkTab";
 
-type ProjectView = "chat" | "writing" | "source";
+type ProjectView = "work" | "research" | "chat";
 
 interface WorkspaceProps {
+  api: CowriterApi;
   project: Project | null;
   isSending: boolean;
   isThinking: boolean;
@@ -22,20 +24,19 @@ interface WorkspaceProps {
   selectedModelId: string | null;
   isModelsLoading: boolean;
   modelsError: string | null;
-  filesystemService: ProjectFilesystemService;
+  proofreadTarget: ProofreadTarget | null;
   onSelectProvider: (providerId: number) => void;
   onSelectModel: (modelId: string) => void;
   onSendMessage: (message: string) => void;
   onStopMessage: () => void;
-  onWritingContentChange: (projectId: string, content: string) => void;
+  onDraftChange: (projectId: string, draft: DraftDocument) => void;
   onOpenSettings: () => void;
 }
 
-const NEAR_BOTTOM_THRESHOLD = 96;
 const PROJECT_VIEWS: Array<{ id: ProjectView; label: string }> = [
+  { id: "work", label: "Work" },
+  { id: "research", label: "Research" },
   { id: "chat", label: "Chat" },
-  { id: "writing", label: "Writing" },
-  { id: "source", label: "Source" },
 ];
 
 function HeroGlow() {
@@ -55,6 +56,7 @@ function HeroGlow() {
 }
 
 export function Workspace({
+  api,
   project,
   isSending,
   isThinking,
@@ -65,62 +67,38 @@ export function Workspace({
   selectedModelId,
   isModelsLoading,
   modelsError,
-  filesystemService,
+  proofreadTarget,
   onSelectProvider,
   onSelectModel,
   onSendMessage,
   onStopMessage,
-  onWritingContentChange,
+  onDraftChange,
   onOpenSettings,
 }: WorkspaceProps) {
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-  const scrollContentRef = useRef<HTMLDivElement | null>(null);
-  const isNearBottomRef = useRef(true);
-  const [isNearBottom, setIsNearBottom] = useState(true);
-  const [activeView, setActiveView] = useState<ProjectView>("chat");
-  const previousProjectIdRef = useRef<string | null>(null);
+  const [activeView, setActiveView] = useState<ProjectView>("work");
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const references = useReferences(api, project?.id ?? null);
   const hero = project === null;
 
-  const scrollToBottom = () => {
-    const scrollContainer = scrollRef.current;
-    if (scrollContainer) {
-      scrollContainer.scrollTop = scrollContainer.scrollHeight;
-    }
-  };
-
-  useLayoutEffect(() => {
-    const projectId = project?.id ?? null;
-    if (projectId !== previousProjectIdRef.current) {
-      previousProjectIdRef.current = projectId;
-      isNearBottomRef.current = true;
-      setIsNearBottom(true);
-    }
-    if (activeView === "chat" && isNearBottomRef.current) {
-      scrollToBottom();
-    }
-  }, [activeView, project?.id, project?.conversationItems, isThinking]);
-
   useEffect(() => {
-    setActiveView("chat");
+    setActiveView("work");
   }, [project?.id]);
 
-  useEffect(() => {
-    const scrollContainer = scrollRef.current;
-    const scrollContent = scrollContentRef.current;
-    if (activeView !== "chat" || !scrollContainer || !scrollContent) {
-      return;
-    }
-
-    const observer = new ResizeObserver(() => {
-      if (isNearBottomRef.current) {
-        scrollToBottom();
-      }
-    });
-    observer.observe(scrollContainer);
-    observer.observe(scrollContent);
-    return () => observer.disconnect();
-  }, [activeView, hero]);
+  const composer = {
+    onSend: onSendMessage,
+    onStop: onStopMessage,
+    isSending,
+    canSend: Boolean(selectedModelId) && !isModelsLoading,
+    providers,
+    activeProviderId,
+    models,
+    selectedModelId,
+    isModelsLoading,
+    modelsError,
+    onSelectProvider,
+    onSelectModel,
+    onOpenSettings,
+  };
 
   return (
     <main className="workspace" data-phase={hero ? "hero" : "active"} data-dialog-fallback-focus tabIndex={-1}>
@@ -165,7 +143,7 @@ export function Workspace({
           <div className="file-tabs" />
         </header>
       )}
-      {error && (hero || activeView === "chat") && (
+      {error && (
         <div className="error-banner" role="alert">
           <span>{error}</span>
         </div>
@@ -180,109 +158,40 @@ export function Workspace({
               </h1>
               <div className="hero-composer">
                 <HeroGlow />
-                <Composer
-                  hero
-                  onSend={onSendMessage}
-                  onStop={onStopMessage}
-                  isSending={isSending}
-                  canSend={Boolean(selectedModelId) && !isModelsLoading}
-                  providers={providers}
-                  activeProviderId={activeProviderId}
-                  models={models}
-                  selectedModelId={selectedModelId}
-                  isModelsLoading={isModelsLoading}
-                  modelsError={modelsError}
-                  onSelectProvider={onSelectProvider}
-                  onSelectModel={onSelectModel}
-                  onOpenSettings={onOpenSettings}
-                />
+                <Composer hero {...composer} />
               </div>
             </div>
           </div>
         </div>
       ) : (
         <>
-          <div
-            id="project-chat-panel"
-            ref={scrollRef}
-            className="workspace-body"
-            role="tabpanel"
-            aria-labelledby="project-chat-tab"
-            hidden={activeView !== "chat"}
-            data-conversation-scroll
-            onScroll={(event) => {
-              const scrollContainer = event.currentTarget;
-              const distanceFromBottom = scrollContainer.scrollHeight
-                - scrollContainer.clientHeight
-                - scrollContainer.scrollTop;
-              isNearBottomRef.current = distanceFromBottom <= NEAR_BOTTOM_THRESHOLD;
-              setIsNearBottom(isNearBottomRef.current);
+          <WorkTab
+            key={project.id}
+            api={api}
+            project={project}
+            isActive={activeView === "work"}
+            references={references}
+            proofreadTarget={proofreadTarget}
+            modelSelection={{
+              providers,
+              activeProviderId,
+              models,
+              selectedModelId,
+              isModelsLoading,
+              modelsError,
+              onSelectProvider,
+              onSelectModel,
+              onOpenSettings,
             }}
-          >
-            <div ref={scrollContentRef} className="workspace-scroll-content">
-              <Conversation items={project.conversationItems} isSending={isThinking} />
-            </div>
-            {!isNearBottom && (
-              <div className="scroll-to-bottom-slot">
-                <button
-                  className="scroll-to-bottom"
-                  type="button"
-                  aria-label="Jump to latest message"
-                  onClick={() => {
-                    isNearBottomRef.current = true;
-                    setIsNearBottom(true);
-                    scrollToBottom();
-                  }}
-                >
-                  <span aria-hidden="true">↓</span>
-                </button>
-              </div>
-            )}
-            <div className="composer-seat">
-              <Composer
-                hero={false}
-                onSend={onSendMessage}
-                onStop={onStopMessage}
-                isSending={isSending}
-                canSend={Boolean(selectedModelId) && !isModelsLoading}
-                providers={providers}
-                activeProviderId={activeProviderId}
-                models={models}
-                selectedModelId={selectedModelId}
-                isModelsLoading={isModelsLoading}
-                modelsError={modelsError}
-                onSelectProvider={onSelectProvider}
-                onSelectModel={onSelectModel}
-                onOpenSettings={onOpenSettings}
-              />
-            </div>
-          </div>
-          <div
-            id="project-writing-panel"
-            className="workspace-body writing-body"
-            role="tabpanel"
-            aria-labelledby="project-writing-tab"
-            hidden={activeView !== "writing"}
-          >
-            <WritingEditor
-              key={project.id}
-              content={project.writingContent}
-              onChange={(content) => onWritingContentChange(project.id, content)}
-            />
-          </div>
-          <div
-            id="project-source-panel"
-            className="workspace-body source-body"
-            role="tabpanel"
-            aria-labelledby="project-source-tab"
-            hidden={activeView !== "source"}
-          >
-            <ProjectSourceEditor
-              key={project.id}
-              project={project}
-              filesystemService={filesystemService}
-            />
-          </div>
+            onDraftChange={onDraftChange}
+          />
+          <ResearchTab api={api} isActive={activeView === "research"} references={references} />
+          <ChatTab
+            project={project}
+            isActive={activeView === "chat"}
+            isThinking={isThinking}
+            composer={composer}
+          />
         </>
       )}
     </main>

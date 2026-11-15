@@ -1,4 +1,15 @@
-import type { ChatRequest, CreateProjectInput, Project, ToolCall } from "../../types";
+import type {
+  ChatRequest,
+  CreateProjectInput,
+  DraftDocument,
+  Paper,
+  PaperSearchResult,
+  Project,
+  ProofreadIssue,
+  ProofreadRequest,
+  Reference,
+  ToolCall,
+} from "../../types";
 import type {
   ConnectProviderInput,
   OAuthConnectionStatus,
@@ -19,6 +30,12 @@ export interface CowriterApi {
   listProjects(signal?: AbortSignal): Promise<Project[]>;
   createProject(input: CreateProjectInput, signal?: AbortSignal): Promise<Project>;
   openProject(projectId: string, signal?: AbortSignal): Promise<void>;
+  saveDraft(projectId: string, draft: DraftDocument | null, signal?: AbortSignal): Promise<void>;
+  searchPapers(query: string, offset: number, signal?: AbortSignal): Promise<PaperSearchResult>;
+  listReferences(projectId: string, signal?: AbortSignal): Promise<Reference[]>;
+  saveReference(projectId: string, paper: Paper, signal?: AbortSignal): Promise<Reference>;
+  deleteReference(projectId: string, referenceId: number, signal?: AbortSignal): Promise<void>;
+  proofread(input: ProofreadRequest, signal?: AbortSignal): Promise<ProofreadIssue[]>;
   streamChat(
     input: ChatRequest,
     onEvent: (event: ChatStreamEvent) => void,

@@ -6,11 +6,12 @@ import { Workspace } from "./components/Workspace";
 import { useProviders } from "./hooks/useProviders";
 import { projectFilesystemService } from "./services/projectFilesystem";
 import type { CowriterApi } from "./services/backend/types";
-import type { ConversationItem, CreateProjectInput, Message, Project, ToolCall } from "./types";
+import type { ConversationItem, CreateProjectInput, DraftDocument, Message, Project, ToolCall } from "./types";
 import type { ProviderModel } from "./types/providers";
 import { createId } from "./utils/ids";
 
 const CHAT_PREFERENCES_KEY = "cowriter.chat-preferences.v1";
+const DRAFT_SAVE_DELAY_MS = 800;
 
 interface ChatPreferences {
   activeConnectionId: number | null;
@@ -470,18 +471,59 @@ export default function App({ api }: { api: CowriterApi }) {
 
   useEffect(() => () => chatControllerRef.current?.abort(), []);
 
-  const handleWritingContentChange = (projectId: string, writingContent: string) => {
-    setProjects((currentProjects) => currentProjects.map((project) => {
-      if (project.id !== projectId || project.writingContent === writingContent) {
-        return project;
-      }
-      return {
-        ...project,
-        writingContent,
-        updatedAt: new Date().toISOString(),
-      };
-    }));
+  const pendingDraftSavesRef = useRef(new Map<string, { draft: DraftDocument; timer: number }>());
+
+  const flushDraftSave = (projectId: string) => {
+    const pending = pendingDraftSavesRef.current.get(projectId);
+    if (!pending) {
+      return;
+    }
+    window.clearTimeout(pending.timer);
+    pendingDraftSavesRef.current.delete(projectId);
+    void api.saveDraft(projectId, pending.draft).catch((saveError) => {
+      setError(saveError instanceof Error ? `Could not save the draft: ${saveError.message}` : "Could not save the draft.");
+    });
   };
+
+  const handleDraftChange = (projectId: string, draft: DraftDocument) => {
+    setProjects((currentProjects) => currentProjects.map((project) => (
+      project.id === projectId ? { ...project, draft } : project
+    )));
+    const pending = pendingDraftSavesRef.current.get(projectId);
+    if (pending) {
+      window.clearTimeout(pending.timer);
+    }
+    const timer = window.setTimeout(() => flushDraftSave(projectId), DRAFT_SAVE_DELAY_MS);
+    pendingDraftSavesRef.current.set(projectId, { draft, timer });
+  };
+
+  // Save pending drafts right away when the user leaves a project or closes the app.
+  const flushDraftSaveRef = useRef(flushDraftSave);
+  flushDraftSaveRef.current = flushDraftSave;
+  useEffect(() => {
+    const flushAll = () => {
+      for (const projectId of Array.from(pendingDraftSavesRef.current.keys())) {
+        flushDraftSaveRef.current(projectId);
+      }
+    };
+    window.addEventListener("beforeunload", flushAll);
+    return () => {
+      window.removeEventListener("beforeunload", flushAll);
+      flushAll();
+    };
+  }, []);
+
+  useEffect(() => {
+    for (const projectId of Array.from(pendingDraftSavesRef.current.keys())) {
+      if (projectId !== selectedProjectId) {
+        flushDraftSave(projectId);
+      }
+    }
+  }, [selectedProjectId]);
+
+  const proofreadTarget = activeConnection && selectedModelId && !isModelsLoading
+    ? { connectionId: activeConnection.id, provider: activeConnection.providerId, model: selectedModelId }
+    : null;
 
   return (
     <div className="app-shell">
@@ -514,6 +556,7 @@ export default function App({ api }: { api: CowriterApi }) {
         onToggleCollapsed={() => setSidebarCollapsed((collapsed) => !collapsed)}
       />
       <Workspace
+        api={api}
         project={selectedProject}
         isSending={isSending}
         isThinking={isSending && sendingProjectId === selectedProject?.id}
@@ -528,7 +571,7 @@ export default function App({ api }: { api: CowriterApi }) {
         selectedModelId={selectedModelId}
         isModelsLoading={isModelsLoading}
         modelsError={modelsError}
-        filesystemService={projectFilesystemService}
+        proofreadTarget={proofreadTarget}
         onSelectProvider={(connectionId) => {
           setModels([]);
           setModelsConnectionId(null);
@@ -545,7 +588,7 @@ export default function App({ api }: { api: CowriterApi }) {
         }}
         onSendMessage={handleSendMessage}
         onStopMessage={handleStopMessage}
-        onWritingContentChange={handleWritingContentChange}
+        onDraftChange={handleDraftChange}
         onOpenSettings={() => {
           setIsSettingsOpen(true);
           setIsProjectModalOpen(false);

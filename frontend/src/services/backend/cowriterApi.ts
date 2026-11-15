@@ -7,7 +7,16 @@ import type {
   ProviderModel,
   SupportedProvider,
 } from "../../types/providers";
-import type { Message, Project, ToolCall, ToolCallStatus } from "../../types";
+import type {
+  DraftDocument,
+  Message,
+  Paper,
+  Project,
+  ProofreadIssue,
+  Reference,
+  ToolCall,
+  ToolCallStatus,
+} from "../../types";
 import { request, requestJson } from "./http";
 import type { ChatStreamEvent, CowriterApi } from "./types";
 
@@ -27,6 +36,7 @@ interface ProjectResponse {
   name?: unknown;
   description?: unknown;
   path?: unknown;
+  draft?: unknown;
   conversations?: unknown;
   created_at?: unknown;
   updated_at?: unknown;
@@ -139,7 +149,7 @@ function normalizeProject(value: unknown): Project {
     title: project.name,
     path: project.path,
     writingContext: project.description,
-    writingContent: "",
+    draft: isRecord(project.draft) && project.draft.type === "doc" ? project.draft as DraftDocument : null,
     createdAt: project.created_at,
     updatedAt: project.updated_at,
     conversationItems: messages,
@@ -192,6 +202,69 @@ function normalizeToolCall(value: unknown): ToolCall {
     error: value.error,
     calledAt: value.created_at,
     finishedAt: value.completed_at,
+  };
+}
+
+function optionalString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+function optionalInteger(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) ? value : null;
+}
+
+function normalizePaper(value: unknown): Paper {
+  if (!isRecord(value) || typeof value.paper_id !== "string" || typeof value.title !== "string") {
+    throw new Error("Backend returned an invalid paper.");
+  }
+  return {
+    paperId: value.paper_id,
+    title: value.title,
+    year: optionalInteger(value.year),
+    authors: normalizeStringList(value.authors),
+    venue: optionalString(value.venue),
+    abstract: optionalString(value.abstract),
+    tldr: optionalString(value.tldr),
+    citationCount: optionalInteger(value.citation_count),
+    doi: optionalString(value.doi),
+    url: optionalString(value.url),
+    pdfUrl: optionalString(value.pdf_url),
+  };
+}
+
+function normalizeReference(value: unknown): Reference {
+  if (!isRecord(value) || typeof value.id !== "number" || typeof value.created_at !== "string") {
+    throw new Error("Backend returned an invalid reference.");
+  }
+  return { ...normalizePaper(value), id: value.id, createdAt: value.created_at };
+}
+
+const PROOFREAD_ISSUE_TYPES = new Set(["spelling", "grammar", "claim", "style"]);
+
+function normalizeProofreadIssue(value: unknown): ProofreadIssue {
+  if (
+    !isRecord(value)
+    || typeof value.id !== "string"
+    || typeof value.type !== "string"
+    || !PROOFREAD_ISSUE_TYPES.has(value.type)
+    || typeof value.start !== "number"
+    || typeof value.end !== "number"
+    || value.end <= value.start
+    || typeof value.quote !== "string"
+  ) {
+    throw new Error("Backend returned an invalid proofreading issue.");
+  }
+  return {
+    id: value.id,
+    type: value.type as ProofreadIssue["type"],
+    start: value.start,
+    end: value.end,
+    quote: value.quote,
+    explanation: typeof value.explanation === "string" ? value.explanation : "",
+    suggestion: typeof value.suggestion === "string" ? value.suggestion : null,
+    referenceIds: Array.isArray(value.reference_ids)
+      ? value.reference_ids.filter((id): id is number => typeof id === "number")
+      : [],
   };
 }
 
@@ -277,6 +350,90 @@ export const cowriterApi: CowriterApi = {
       method: "POST",
       signal,
     });
+  },
+
+  async saveDraft(projectId, draft, signal) {
+    await request(`/api/projects/${encodeURIComponent(projectId)}/draft`, {
+      method: "PUT",
+      signal,
+      body: JSON.stringify({ draft }),
+    });
+  },
+
+  async searchPapers(query, offset, signal) {
+    const params = new URLSearchParams({ q: query, offset: String(offset) });
+    const response = await requestJson<unknown>(`/api/research/search?${params.toString()}`, { signal });
+    if (!isRecord(response) || !Array.isArray(response.papers)) {
+      throw new Error("Backend returned an invalid search result.");
+    }
+    return {
+      total: optionalInteger(response.total) ?? 0,
+      offset: optionalInteger(response.offset) ?? offset,
+      next: optionalInteger(response.next),
+      papers: response.papers.map(normalizePaper),
+    };
+  },
+
+  async listReferences(projectId, signal) {
+    const references = await requestJson<unknown>(
+      `/api/projects/${encodeURIComponent(projectId)}/references`,
+      { signal },
+    );
+    if (!Array.isArray(references)) {
+      throw new Error("Backend returned an invalid reference list.");
+    }
+    return references.map(normalizeReference);
+  },
+
+  async saveReference(projectId, paper, signal) {
+    const reference = await requestJson<unknown>(
+      `/api/projects/${encodeURIComponent(projectId)}/references`,
+      {
+        method: "POST",
+        signal,
+        body: JSON.stringify({
+          paper_id: paper.paperId,
+          title: paper.title,
+          year: paper.year,
+          authors: paper.authors,
+          venue: paper.venue,
+          abstract: paper.abstract,
+          tldr: paper.tldr,
+          citation_count: paper.citationCount,
+          doi: paper.doi,
+          url: paper.url,
+          pdf_url: paper.pdfUrl,
+        }),
+      },
+    );
+    return normalizeReference(reference);
+  },
+
+  async deleteReference(projectId, referenceId, signal) {
+    await request(
+      `/api/projects/${encodeURIComponent(projectId)}/references/${encodeURIComponent(referenceId)}`,
+      { method: "DELETE", signal },
+    );
+  },
+
+  async proofread(input, signal) {
+    const response = await requestJson<unknown>(
+      `/api/projects/${encodeURIComponent(input.projectId)}/proofread`,
+      {
+        method: "POST",
+        signal,
+        body: JSON.stringify({
+          connection_id: input.connectionId,
+          provider: input.provider,
+          model: input.model,
+          text: input.text,
+        }),
+      },
+    );
+    if (!isRecord(response) || !Array.isArray(response.issues)) {
+      throw new Error("Backend returned an invalid review.");
+    }
+    return response.issues.map(normalizeProofreadIssue);
   },
 
   async streamChat(input, onEvent, signal) {
