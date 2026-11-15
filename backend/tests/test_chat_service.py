@@ -83,6 +83,23 @@ class FakeMCPClient:
         )
 
 
+class PagedMCPClient(FakeMCPClient):
+    async def list_tools(self):
+        return [SimpleNamespace(
+            name="read_file",
+            description="Read a project file.",
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string"},
+                    "offset": {"type": "integer"},
+                    "max_chars": {"type": "integer"},
+                },
+                "required": ["path"],
+            },
+        )]
+
+
 class FailingMCPClient(FakeMCPClient):
     async def call_tool(self, name, arguments):
         self.calls.append((name, arguments))
@@ -242,7 +259,10 @@ class ChatServiceTests(unittest.TestCase):
             [event["tool_call"]["status"] for event in chunks if event["type"] == "tool_call"],
             ["pending", "running", "completed"],
         )
-        self.assertEqual(mcp_client.calls, [("read_file", {"path": "draft.txt"})])
+        self.assertEqual(len(mcp_client.calls), 1)
+        self.assertEqual(mcp_client.calls[0][0], "read_file")
+        self.assertEqual(mcp_client.calls[0][1]["path"], "draft.txt")
+        self.assertGreater(mcp_client.calls[0][1]["max_chars"], 0)
         self.assertEqual(self.provider.complete_chat_calls[0][3][0].name, "read_file")
         self.assertEqual(self.provider.complete_chat_calls[1][2][-1], {
             "role": "tool",
@@ -352,6 +372,75 @@ class ChatServiceTests(unittest.TestCase):
             self.service.chat(ChatRequest(99, "openai", "model", "Hello"))
 
         self.assertEqual(raised.exception.status_code, 404)
+
+
+    def make_tool_service(self, mcp_client, tool_call_service):
+        return ChatService(
+            connection_lookup=lambda _connection_id: self.connection,
+            credential_store=self.credentials,
+            providers=[self.provider],
+            project_lookup=lambda _project_id: SimpleNamespace(path="/tmp/project"),
+            mcp_client_factory=lambda _project_path: mcp_client,
+            conversation_resolver=lambda _project_id: SimpleNamespace(id=15),
+            tool_call_service=tool_call_service,
+        )
+
+    def test_read_file_is_limited_to_the_remaining_context(self):
+        mcp_client = PagedMCPClient()
+        self.provider.context_window = lambda _config, _model: 3000
+        self.provider.turns = [
+            ModelTurn("", (ToolCall("call-1", "read_file", {"path": "draft.tex"}),)),
+            ModelTurn("Done."),
+        ]
+        service = self.make_tool_service(mcp_client, FakeToolCallService())
+
+        list(service.stream_chat(ChatRequest(7, "openai", "gpt-test", "Read it", project_id=3)))
+
+        max_chars = mcp_client.calls[0][1]["max_chars"]
+        self.assertGreater(max_chars, 0)
+        self.assertLess(max_chars, (3000 - 1024) * 4)
+        schema = self.provider.complete_chat_calls[0][3][0].input_schema
+        self.assertNotIn("max_chars", schema["properties"])
+        self.assertIn("offset", schema["properties"])
+        self.assertEqual(schema["required"], ["path"])
+
+    def test_model_cannot_raise_its_own_read_limit(self):
+        mcp_client = PagedMCPClient()
+        self.provider.context_window = lambda _config, _model: 3000
+        self.provider.turns = [
+            ModelTurn("", (ToolCall("call-1", "read_file", {"path": "a", "max_chars": 10**9}),)),
+            ModelTurn("Done."),
+        ]
+        service = self.make_tool_service(mcp_client, FakeToolCallService())
+
+        list(service.stream_chat(ChatRequest(7, "openai", "gpt-test", "Read it", project_id=3)))
+
+        self.assertLess(mcp_client.calls[0][1]["max_chars"], 3000 * 4)
+
+    def test_full_context_skips_the_read_and_tells_the_model(self):
+        mcp_client = PagedMCPClient()
+        tool_call_service = FakeToolCallService()
+        self.provider.context_window = lambda _config, _model: 1200
+        self.provider.turns = [
+            ModelTurn("", (ToolCall("call-1", "read_file", {"path": "draft.tex"}),)),
+            ModelTurn("Answer without the file."),
+        ]
+        service = self.make_tool_service(mcp_client, tool_call_service)
+
+        events = list(service.stream_chat(
+            ChatRequest(7, "openai", "gpt-test", "Read it", project_id=3)
+        ))
+
+        self.assertEqual(mcp_client.calls, [])
+        self.assertEqual(
+            [event["tool_call"]["status"] for event in events if event["type"] == "tool_call"],
+            ["pending", "running", "failed"],
+        )
+        self.assertIn("context is full", tool_call_service.failed[0][1])
+        self.assertIn("context is full", self.provider.complete_chat_calls[1][2][-1]["content"])
+
+    def test_unknown_context_window_uses_default(self):
+        self.assertEqual(ChatService.context_window(object(), None, "m"), 4096)
 
 
 if __name__ == "__main__":

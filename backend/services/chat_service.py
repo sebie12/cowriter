@@ -23,6 +23,16 @@ from backend.mcp_client import MCPClient
 
 
 MAX_TOOL_ROUNDS = 5
+READ_FILE_TOOL = "read_file"
+# Rough token estimate; avoids a tokenizer dependency per provider.
+CHARS_PER_TOKEN = 4
+DEFAULT_CONTEXT_WINDOW = 4096
+RESPONSE_RESERVE_TOKENS = 1024
+MIN_READ_CHARS = 500
+CONTEXT_FULL_MESSAGE = (
+    "Tool error: the model's context is full, so no more file text can be read. "
+    "Answer with the information you already have."
+)
 
 
 class ChatService:
@@ -99,15 +109,7 @@ class ChatService:
         project_path: str,
     ) -> AsyncIterator[dict[str, Any]]:
         async with self.mcp_client_factory(project_path) as client:
-            mcp_tools = await client.list_tools()
-            tools = tuple(
-                ToolDefinition(
-                    name=tool.name,
-                    description=tool.description or "",
-                    input_schema=tool.input_schema,
-                )
-                for tool in mcp_tools
-            )
+            tools = self.tool_definitions(await client.list_tools())
             if not tools:
                 for event in self._stream_provider(request, provider, config):
                     yield event
@@ -118,6 +120,7 @@ class ChatService:
                 messages.append({"role": "system", "content": request.system_prompt})
             messages.extend(request.model_messages())
             conversation_id = None
+            context_window = self.context_window(provider, config, request.model)
 
             for _ in range(MAX_TOOL_ROUNDS):
                 turn = provider.complete_chat(request, config, messages, tools)
@@ -165,8 +168,20 @@ class ChatService:
                         raise LLMError("Could not update the tool call.", 500)
                     yield self._tool_call_event(record)
 
+                    arguments = self.budget_tool_arguments(
+                        call, messages, tools, context_window
+                    )
+                    if arguments is None:
+                        failed_record = self.tool_call_service.fail_tool_call(
+                            record.id, CONTEXT_FULL_MESSAGE
+                        )
+                        if failed_record is not None:
+                            yield self._tool_call_event(failed_record)
+                        messages.append(self._tool_message(call, CONTEXT_FULL_MESSAGE))
+                        continue
+
                     try:
-                        result = await client.call_tool(call.name, call.arguments)
+                        result = await client.call_tool(call.name, arguments)
                     except Exception as error:
                         if record is not None:
                             failed_record = self.tool_call_service.fail_tool_call(record.id, error)
@@ -185,14 +200,72 @@ class ChatService:
                         if completed_record is None:
                             raise LLMError("Could not update the tool call.", 500)
                         yield self._tool_call_event(completed_record)
-                    messages.append({
-                        "role": "tool",
-                        "tool_call_id": call.id,
-                        "tool_name": call.name,
-                        "content": self._serialize_mcp_result(result),
-                    })
+                    messages.append(
+                        self._tool_message(call, self._serialize_mcp_result(result))
+                    )
 
         raise LLMError("Maximum tool-call rounds exceeded.", 502)
+
+    @staticmethod
+    def tool_definitions(mcp_tools: Any) -> tuple[ToolDefinition, ...]:
+        """Convert MCP tools, hiding read_file's max_chars, which the app sets."""
+        definitions = []
+        for tool in mcp_tools:
+            input_schema = tool.input_schema
+            if tool.name == READ_FILE_TOOL and "max_chars" in input_schema.get("properties", {}):
+                input_schema = {
+                    **input_schema,
+                    "properties": {
+                        name: schema
+                        for name, schema in input_schema["properties"].items()
+                        if name != "max_chars"
+                    },
+                    "required": [
+                        name for name in input_schema.get("required", ()) if name != "max_chars"
+                    ],
+                }
+            definitions.append(ToolDefinition(
+                name=tool.name,
+                description=tool.description or "",
+                input_schema=input_schema,
+            ))
+        return tuple(definitions)
+
+    @staticmethod
+    def context_window(provider: LLMProvider, config: ProviderConfig, model: str) -> int:
+        lookup = getattr(provider, "context_window", None)
+        window = lookup(config, model) if callable(lookup) else None
+        return window if isinstance(window, int) and window > 0 else DEFAULT_CONTEXT_WINDOW
+
+    @staticmethod
+    def budget_tool_arguments(
+        call: ToolCall,
+        messages: list[dict[str, Any]],
+        tools: tuple[ToolDefinition, ...],
+        context_window: int,
+    ) -> dict[str, Any] | None:
+        """Limit read_file to the context that's left; None means nothing fits."""
+        if call.name != READ_FILE_TOOL:
+            return call.arguments
+        used_chars = len(json.dumps(messages, ensure_ascii=False)) + len(
+            json.dumps([tool.model_payload() for tool in tools], ensure_ascii=False)
+        )
+        remaining_tokens = (
+            context_window - used_chars // CHARS_PER_TOKEN - RESPONSE_RESERVE_TOKENS
+        )
+        max_chars = remaining_tokens * CHARS_PER_TOKEN
+        if max_chars < MIN_READ_CHARS:
+            return None
+        return {**call.arguments, "max_chars": max_chars}
+
+    @staticmethod
+    def _tool_message(call: ToolCall, content: str) -> dict[str, Any]:
+        return {
+            "role": "tool",
+            "tool_call_id": call.id,
+            "tool_name": call.name,
+            "content": content,
+        }
 
     @staticmethod
     def _timestamp() -> str:

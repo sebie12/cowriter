@@ -106,3 +106,7 @@ class LLMProvider(Protocol):
 
     def list_models(self, config: ProviderConfig) -> list[str]:
         ...
+
+    def context_window(self, config: ProviderConfig, model: str) -> int | None:
+        """Tokens the model can take in one request, or None if unknown."""
+        ...

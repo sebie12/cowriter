@@ -138,7 +138,8 @@ class ProofreadToolLoopTests(unittest.TestCase):
         service, client = self.make_service(provider)
         issues = service.review(connection_id=1, provider="ollama", model="m", text="teh end", project_path="/p")
         self.assertEqual(issues[0]["quote"], "teh")
-        self.assertEqual(client.calls, [("read_file", {"path": "a.tex"})])
+        self.assertEqual(client.calls[0][1]["path"], "a.tex")
+        self.assertGreater(client.calls[0][1]["max_chars"], 0)
         self.assertEqual(len(provider.calls), 2)
 
     def test_unreadable_final_answer_is_repaired_under_json_constraint(self):

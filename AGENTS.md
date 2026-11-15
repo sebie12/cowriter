@@ -27,6 +27,7 @@
 - `npm run dev` / `npm run tauri -- dev` are long-running desktop dev commands; reaching `Running target/debug/cowriter` means launch succeeded.
 - All backend routes use the `/api` prefix and imports use the `backend.` package prefix. The API contract is in `docs/frontend-backend-api.md`.
 - `POST /api/chat` streams NDJSON events: `assistant_start` / `assistant_delta` / `assistant_end`, `tool_call`, then `done` or `error`.
+- `read_file` converts `.tex` files to plain text with pypandoc and returns long files in pages. The backend caps each read to the model's remaining context window.
 - SQLite lives at `instance/database.db` by default; override with `COWRITER_DATABASE_URI`. `test_migrations.py` fails if models and migrations drift.
 
 ## Provider Integration Boundary
