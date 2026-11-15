@@ -36,6 +36,8 @@ app = Flask(__name__)
 
 app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY", "cowriter-dev-secret-key")
 default_database_path = Path(__file__).resolve().parents[1] / "instance" / "database.db"
+# SQLite creates the database file but not its parent directory.
+default_database_path.parent.mkdir(parents=True, exist_ok=True)
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
     "COWRITER_DATABASE_URI",
     f"sqlite:///{default_database_path}",
