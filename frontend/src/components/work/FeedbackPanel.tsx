@@ -19,6 +19,8 @@ interface FeedbackPanelProps {
   filter: ProofreadIssueType | null;
   references: Reference[];
   hasReferences: boolean;
+  essay: { file: string; truncated: boolean } | null;
+  hasProjectFolder: boolean;
   onFilterChange: (filter: ProofreadIssueType | null) => void;
   onHover: (id: string | null) => void;
   onSelect: (id: string) => void;
@@ -39,6 +41,8 @@ export function FeedbackPanel({
   filter,
   references,
   hasReferences,
+  essay,
+  hasProjectFolder,
   onFilterChange,
   onHover,
   onSelect,
@@ -88,6 +92,15 @@ export function FeedbackPanel({
         ))}
       </div>
 
+      {status === "reviewed" && essay && (
+        <p className="feedback-context">
+          Compared with <code>{essay.file}</code>
+          {essay.truncated && " (only the first part fit; the rest was not checked)"}
+        </p>
+      )}
+      {status === "reviewed" && !essay && hasProjectFolder && (
+        <p className="feedback-context">No LaTeX essay found in the project folder, so the draft was not compared with one.</p>
+      )}
       {!hasReferences && (
         <p className="feedback-note">
           No references saved. Claims are only checked against general knowledge. Save papers in Research to check claims against them.
@@ -104,7 +117,7 @@ export function FeedbackPanel({
                   <span className={`issue-sample issue--${type}`}>{ISSUE_LABELS[type].label.toLowerCase()}</span>
                   {type === "spelling" && "Misspelled words"}
                   {type === "grammar" && "Grammatical errors"}
-                  {type === "claim" && "False or unsupported claims"}
+                  {type === "claim" && "False or unsupported claims, or ones that contradict your essay"}
                   {type === "style" && "Unclear or off-tone wording"}
                 </li>
               ))}

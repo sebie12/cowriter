@@ -32,11 +32,8 @@ def _project_path(relative_path: str) -> tuple[Path, Path]:
     return root, target
 
 
-def _readable_text(file_path: Path) -> tuple[str, bool]:
-    """Return the file's text, with LaTeX markup converted to plain prose."""
-    source = file_path.read_text(encoding="utf-8")
-    if file_path.suffix.lower() != ".tex":
-        return source, True
+def latex_to_text(source: str) -> tuple[str, bool]:
+    """Convert LaTeX to plain prose; returns (text, converted)."""
     try:
         return pypandoc.convert_text(
             source, "plain", format="latex", extra_args=["--wrap=none"]
@@ -44,6 +41,14 @@ def _readable_text(file_path: Path) -> tuple[str, bool]:
     except (RuntimeError, OSError):
         # Malformed LaTeX still beats no content at all.
         return source, False
+
+
+def _readable_text(file_path: Path) -> tuple[str, bool]:
+    """Return the file's text, with LaTeX markup converted to plain prose."""
+    source = file_path.read_text(encoding="utf-8")
+    if file_path.suffix.lower() != ".tex":
+        return source, True
+    return latex_to_text(source)
 
 
 def _page(text: str, offset: int, max_chars: int | None) -> tuple[str, int | None]:

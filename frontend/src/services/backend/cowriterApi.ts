@@ -433,7 +433,11 @@ export const cowriterApi: CowriterApi = {
     if (!isRecord(response) || !Array.isArray(response.issues)) {
       throw new Error("Backend returned an invalid review.");
     }
-    return response.issues.map(normalizeProofreadIssue);
+    return {
+      issues: response.issues.map(normalizeProofreadIssue),
+      essayFile: optionalString(response.essay_file),
+      essayTruncated: response.essay_truncated === true,
+    };
   },
 
   async streamChat(input, onEvent, signal) {

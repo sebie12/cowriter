@@ -1,5 +1,7 @@
 import json
+import tempfile
 import unittest
+from pathlib import Path
 
 from flask import Flask
 
@@ -136,7 +138,7 @@ class ProofreadToolLoopTests(unittest.TestCase):
             ModelTurn(content=review_reply({"type": "spelling", "quote": "teh", "suggestion": "the"})),
         ])
         service, client = self.make_service(provider)
-        issues = service.review(connection_id=1, provider="ollama", model="m", text="teh end", project_path="/p")
+        issues = service.review(connection_id=1, provider="ollama", model="m", text="teh end", project_path="/p")["issues"]
         self.assertEqual(issues[0]["quote"], "teh")
         self.assertEqual(client.calls[0][1]["path"], "a.tex")
         self.assertGreater(client.calls[0][1]["max_chars"], 0)
@@ -148,7 +150,7 @@ class ProofreadToolLoopTests(unittest.TestCase):
             ModelTurn(content=review_reply({"type": "spelling", "quote": "teh", "suggestion": "the"})),
         ])
         service, _ = self.make_service(provider)
-        issues = service.review(connection_id=1, provider="ollama", model="m", text="teh end", project_path="/p")
+        issues = service.review(connection_id=1, provider="ollama", model="m", text="teh end", project_path="/p")["issues"]
         self.assertEqual(issues[0]["type"], "spelling")
         repair_call = provider.calls[-1]
         self.assertEqual(repair_call["tools"], ())
@@ -160,10 +162,39 @@ class ProofreadToolLoopTests(unittest.TestCase):
         provider = ToolLoopProvider([call] * 5 + [ModelTurn(content=review_reply())])
         service, _ = self.make_service(provider)
         self.assertEqual(
-            service.review(connection_id=1, provider="ollama", model="m", text="fine", project_path="/p"),
+            service.review(connection_id=1, provider="ollama", model="m", text="fine", project_path="/p")["issues"],
             [],
         )
         self.assertEqual(provider.calls[-1]["tools"], ())
+
+
+class ProofreadEssayTests(unittest.TestCase):
+    def test_essay_is_sent_to_the_model_and_reported(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "main.tex").write_text(
+                "\\documentclass{article}\n\\begin{document}\nBattery use rose by 12 percent.\n\\end{document}\n",
+                encoding="utf-8",
+            )
+            provider = ToolLoopProvider([ModelTurn(content=review_reply(
+                {"type": "claim", "quote": "fell by 5 percent", "explanation": "Essay says it rose by 12 percent."}
+            ))])
+            client = FakeMCPClient()
+            service = ProofreadService(FakeChatService(provider, lambda path: client))
+            review = service.review(
+                connection_id=1, provider="ollama", model="m",
+                text="Battery use fell by 5 percent.", project_path=directory,
+            )
+
+        self.assertEqual(review["essay_file"], "main.tex")
+        self.assertFalse(review["essay_truncated"])
+        self.assertEqual(review["issues"][0]["quote"], "fell by 5 percent")
+        system_prompt = provider.calls[0]["messages"][0]["content"]
+        user_message = provider.calls[0]["messages"][-1]["content"]
+        self.assertNotIn("Battery use rose", system_prompt)
+        # The essay comes first and the instructions last, right before the model answers.
+        self.assertLess(user_message.index("Battery use rose by 12 percent."), user_message.index("<<<DRAFT"))
+        self.assertIn("Do not report sentences that agree with the essay", user_message)
 
 
 class ProofreadServiceTests(unittest.TestCase):
@@ -176,7 +207,7 @@ class ProofreadServiceTests(unittest.TestCase):
             model="m",
             text="teh end",
             references=[{"id": 4, "title": "Paper", "authors": ["A"], "year": 2020, "tldr": "Summary"}],
-        )
+        )["issues"]
         self.assertEqual(issues[0]["start"], 0)
         self.assertIn("[id=4] Paper (2020)", provider.requests[0].system_prompt)
         self.assertEqual(provider.requests[0].json_schema, REVIEW_SCHEMA)
@@ -187,7 +218,7 @@ class ProofreadServiceTests(unittest.TestCase):
             ProofreadService(FakeChatService(provider)).review(
                 connection_id=1, provider="openai", model="m", text="   "
             ),
-            [],
+            {"issues": [], "essay_file": None, "essay_truncated": False},
         )
         self.assertEqual(provider.requests, [])
 

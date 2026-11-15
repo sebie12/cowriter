@@ -69,6 +69,7 @@ class SystemPrompts:
         description: str | None = None,
         references: list[dict] | None = None,
         can_read_project_files: bool = False,
+        essay: bool = False,
     ):
         sections = [
             "You are a meticulous proofreader and fact-checker for an academic writer.",
@@ -76,8 +77,9 @@ class SystemPrompts:
             "Report these issue types:\n"
             "- spelling: a misspelled word.\n"
             "- grammar: a grammatical error (agreement, tense, punctuation that changes meaning).\n"
-            "- claim: a factual claim that is false, or that is not supported by the saved references. "
-            "Cite the ids of the references that contradict or relate to it in reference_ids.\n"
+            "- claim: a factual claim that is false, that is not supported by the saved references, "
+            "or that contradicts the writer's essay. Cite the ids of the references that contradict "
+            "or relate to it in reference_ids.\n"
             "- style: wording that is unclear, wordy, or does not fit the project instructions.",
         ]
         if description:
@@ -98,6 +100,11 @@ class SystemPrompts:
             sections.append(
                 "The writer has not saved any references yet. Only flag claims that are clearly false "
                 "or that need a citation, and leave reference_ids empty."
+            )
+        if essay:
+            sections.append(
+                "The user message also contains the writer's essay. The draft is new writing for that "
+                "essay; check the draft against it, but never review or quote the essay itself."
             )
         if can_read_project_files:
             sections.append(
@@ -120,6 +127,25 @@ class SystemPrompts:
             'If there are no problems, respond with {"issues": []}.'
         )
         return "\n\n".join(sections)
+
+    @staticmethod
+    def proofread_message(text: str, essay: tuple[str, str, bool] | None = None) -> str:
+        """The user turn for a review. Small models follow instructions placed after long context."""
+        if not essay:
+            return f"Review this draft:\n<<<\n{text}\n>>>"
+        essay_name, essay_text, essay_truncated = essay
+        return (
+            f"Essay ({essay_name}, converted from LaTeX"
+            + (", cut off at the end because it is long" if essay_truncated else "")
+            + f"):\n<<<ESSAY\n{essay_text}\nESSAY>>>\n\n"
+            f"Draft to review:\n<<<DRAFT\n{text}\nDRAFT>>>\n\n"
+            "Check the draft one sentence at a time. For each sentence, find what the essay says about "
+            "the same topic. If the sentence disagrees with the essay (a different number, result, cause "
+            "or conclusion), report it as a claim issue: quote the sentence from the draft, and in the "
+            "explanation quote what the essay says. Do not report sentences that agree with the essay. "
+            "Also report spelling, grammar and style problems in the draft. Every quote must come from "
+            "the draft, never from the essay."
+        )
 
     @staticmethod
     def writer():

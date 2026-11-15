@@ -218,6 +218,7 @@ The selected model reviews `text` using:
 - the project's writing instructions
 - its saved references (title, authors, year, and TLDR or abstract excerpt)
 - the project's files, via the read-only MCP tools, when the project has a folder. These tool calls are not recorded in the chat history.
+- the project's essay, when the project has a folder. The backend picks the `.tex` file that contains `\begin{document}` (or the largest `.tex` file), inlines its `\input`/`\include` chapters (skipping preambles and anything outside the folder), converts it to plain text with pandoc, and caps it at 24,000 characters. The essay is placed in the user message, followed by an instruction to check the draft sentence by sentence and report contradictions as `claim` issues.
 
 The model's reply is constrained to JSON matching a schema (Ollama `format`, OpenAI JSON mode). Constraints can't be combined with tool calls, so when the project has a folder the tool rounds run unconstrained. If the last answer isn't valid JSON, one more turn without tools asks for it again under the constraint. Replies that still can't be parsed are logged as a warning on the server. The backend finds each quoted passage in `text` and computes the character offsets itself. Issues whose quote can't be found are dropped.
 
@@ -225,6 +226,8 @@ Response:
 
 ```json
 {
+  "essay_file": "main.tex",
+  "essay_truncated": false,
   "issues": [
     {
       "id": "issue-…",
@@ -240,7 +243,7 @@ Response:
 }
 ```
 
-`suggestion` is replacement text for `quote`, or `null`. `reference_ids` only contains ids of the project's saved references. Errors: `400` for validation, `413` for drafts over 60,000 characters, provider errors with their own status, and `502` when the model's reply is not valid JSON.
+`essay_file` is the project-relative essay the draft was compared with (`null` when there is no folder or no `.tex` file), and `essay_truncated` says whether it was cut. For Ollama, the request sets `num_ctx` to fit the prompt (about 3 characters per token plus 2,048 tokens for the answer, between 4,096 and 32,768). `suggestion` is replacement text for `quote`, or `null`. `reference_ids` only contains ids of the project's saved references. Errors: `400` for validation, `413` for drafts over 60,000 characters, provider errors with their own status, and `502` when the model's reply is not valid JSON.
 
 The frontend builds `text` by joining text blocks with a blank line (`"\n\n"`), the same way as ProseMirror `textBetween`, and maps the offsets back to editor positions. The editor is read-only while a review runs.
 

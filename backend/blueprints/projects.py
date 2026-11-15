@@ -307,7 +307,7 @@ def proofread(project_id):
 
     project_path = project.path.strip() if isinstance(project.path, str) and project.path.strip() else None
     try:
-        issues = current_app.extensions["proofread_service"].review(
+        review = current_app.extensions["proofread_service"].review(
             connection_id=connection_id,
             provider=provider.strip(),
             model=model.strip(),
@@ -318,4 +318,4 @@ def proofread(project_id):
         )
     except LLMError as error:
         return jsonify({"error": error.message}), error.status_code
-    return jsonify({"issues": issues})
+    return jsonify(review)
