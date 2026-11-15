@@ -8,7 +8,7 @@ The app is split into three clear areas:
 
 - `frontend/`: React, TypeScript, and Vite user interface.
 - `src-tauri/`: Tauri desktop shell and window configuration.
-- `backend/`: Minimal Flask API that represents the future Python AI/backend layer.
+- `backend/`: Flask API that owns LLM provider connections, chat streaming, MCP project tools, and SQLite persistence.
 
 The frontend communicates with Flask through the injected `CowriterApi` interface in `frontend/src/services/backend/types.ts`. HTTP paths, wire validation, and NDJSON stream parsing are isolated in `frontend/src/services/backend/`; React components contain no transport code. The complete frontend API contract and the removed Harness capabilities are documented in [`docs/frontend-backend-api.md`](docs/frontend-backend-api.md).
 
@@ -103,6 +103,14 @@ Available endpoints:
 
 Provider and model endpoints used by the frontend are listed in [`docs/frontend-backend-api.md`](docs/frontend-backend-api.md).
 
+## Run Backend Tests
+
+Run from the repository root so `backend.*` imports resolve:
+
+```bash
+backend/.venv/bin/python -m unittest discover -s backend/tests
+```
+
 ## Run The Tauri App
 
 With Flask running, start the desktop app in another terminal:
@@ -119,40 +127,24 @@ Tauri starts the Vite frontend automatically and opens the desktop window.
 
 ```text
 frontend/src/
-├── components/
-│   ├── Conversation.tsx
-│   ├── conversation/
-│   │   └── MessageItem.tsx
-│   ├── MarkdownContent.tsx
-│   ├── Sidebar.tsx
-│   ├── Workspace.tsx
-│   └── composer/
-│       ├── Composer.tsx
-│       └── ModelSelector.tsx
-├── data/
-│   └── mockProjects.ts
+├── components/       # Workspace, conversation, composer, projects, providers, settings UI
+├── hooks/            # Dialog focus and provider-loading hooks
 ├── services/
-│   ├── backend/
-│   │   ├── cowriterApi.ts
-│   │   ├── http.ts
-│   │   └── types.ts
-│   └── externalLinks.ts
+│   ├── backend/      # CowriterApi interface, HTTP adapter, NDJSON stream parsing
+│   └── projectFilesystem.ts  # Tauri commands for project files
 ├── types/
-│   └── index.ts
 ├── utils/
-│   └── ids.ts
 ├── App.tsx
-├── main.tsx
-└── styles.css
+└── main.tsx
 ```
 
-## Currently Mocked
+## Current Limitations
 
-- Project data is stored only in React state for the current session.
-- New projects are local-only and are not persisted.
-- Chat responses come from the configured OpenAI or local Ollama model through `POST /api/chat`.
+- Projects (name, writing context, directory path) are stored in the backend database and loaded on startup.
+- Chat messages are not persisted: `POST /api/chat` does not save user or assistant messages, so conversation text is lost on reload. Tool calls are persisted.
+- Chat responses come from the connected OpenAI, Google Gemini, or Ollama model through `POST /api/chat`.
 - The current chat transport supports text messages only; attachment controls are omitted until the backend supports them.
-- Projects with a filesystem path expose read-only `read_file` and `list_files` tools to the selected model through the bundled MCP server.
+- Projects with a filesystem path expose read-only `read_file` and `list_files` tools to the selected model through the bundled MCP server. Project file browsing and LaTeX editing run through Tauri and only work in the desktop app.
 - No Anthropic, LangChain, LangGraph, embeddings, or RAG integration is included.
 
 ## Future Direction
