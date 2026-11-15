@@ -207,10 +207,6 @@ textarea:focus-visible {
   height: 30px;
 }
 
-.quill-mark-ink {
-  stroke: var(--ds-accent);
-}
-
 .brand-name {
   overflow: hidden;
   color: #f3f3f4;
