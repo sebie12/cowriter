@@ -1,20 +1,18 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useReferences } from "../hooks/useReferences";
 import type { CowriterApi } from "../services/backend/types";
 import type { DraftDocument, Project } from "../types";
 import type { ProviderModel } from "../types/providers";
 import { ChatTab } from "./chat/ChatTab";
-import { Composer } from "./composer/Composer";
 import type { ProviderOption } from "./composer/ModelSelector";
 import { ResearchTab } from "./research/ResearchTab";
-import { AsciiQuill } from "./ui/AsciiQuill";
 import { WorkTab, type ProofreadTarget } from "./work/WorkTab";
 
 type ProjectView = "work" | "research" | "chat";
 
 interface WorkspaceProps {
   api: CowriterApi;
-  project: Project | null;
+  project: Project;
   isSending: boolean;
   isThinking: boolean;
   error: string | null;
@@ -39,22 +37,6 @@ const PROJECT_VIEWS: Array<{ id: ProjectView; label: string }> = [
   { id: "chat", label: "Chat" },
 ];
 
-function HeroGlow() {
-  const filterId = `cowriter-hero-glow-${useId().replace(/:/g, "")}`;
-  return (
-    <svg className="hero-glow" viewBox="0 0 1051 468" fill="none" aria-hidden="true">
-      <defs>
-        <filter id={filterId} x="0" y="0" width="1051" height="468" filterUnits="userSpaceOnUse">
-          <feGaussianBlur stdDeviation="50" />
-        </filter>
-      </defs>
-      <g filter={`url(#${filterId})`}>
-        <ellipse cx="525.5" cy="234" rx="425.5" ry="134" fill="#6187D8" fillOpacity="0.09" />
-      </g>
-    </svg>
-  );
-}
-
 export function Workspace({
   api,
   project,
@@ -77,12 +59,11 @@ export function Workspace({
 }: WorkspaceProps) {
   const [activeView, setActiveView] = useState<ProjectView>("work");
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const references = useReferences(api, project?.id ?? null);
-  const hero = project === null;
+  const references = useReferences(api, project.id);
 
   useEffect(() => {
     setActiveView("work");
-  }, [project?.id]);
+  }, [project.id]);
 
   const composer = {
     onSend: onSendMessage,
@@ -101,9 +82,8 @@ export function Workspace({
   };
 
   return (
-    <main className="workspace" data-phase={hero ? "hero" : "active"} data-dialog-fallback-focus tabIndex={-1}>
-      {!hero && (
-        <header className="workspace-header">
+    <main className="workspace" data-phase="active" data-dialog-fallback-focus tabIndex={-1}>
+      <header className="workspace-header">
           <div className="workspace-title-row">
             <h1>{project.title}</h1>
             <div className="workspace-tabs" role="tablist" aria-label="Project views">
@@ -141,27 +121,12 @@ export function Workspace({
             </div>
           </div>
         </header>
-      )}
       {error && (
         <div className="error-banner" role="alert">
           <span>{error}</span>
         </div>
       )}
-      {hero ? (
-        <div className="workspace-body hero">
-          <div className="hero-stage">
-            <div className="hero-stack">
-              <AsciiQuill className="hero-quill" />
-              <h1 className="hero-headline">How can I help with your writing?</h1>
-              <div className="hero-composer">
-                <HeroGlow />
-                <Composer hero {...composer} />
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <>
+      <>
           <WorkTab
             key={project.id}
             api={api}
@@ -189,8 +154,7 @@ export function Workspace({
             isThinking={isThinking}
             composer={composer}
           />
-        </>
-      )}
+      </>
     </main>
   );
 }

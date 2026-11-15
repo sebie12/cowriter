@@ -1,57 +1,26 @@
-import { useEffect, useRef, useState } from "react";
 import type { Project } from "../types";
-import { BackIcon, NewChatIcon, PanelIcon, SearchIcon, SettingsIcon } from "./ui/Icons";
+import { BackIcon, NewChatIcon, PanelIcon, SettingsIcon } from "./ui/Icons";
 import { QuillMark } from "./ui/QuillMark";
 
 interface SidebarProps {
   collapsed: boolean;
-  projects: Project[];
-  isProjectsLoading: boolean;
-  projectsError: string | null;
-  selectedProjectId: string | null;
-  activeProject: Project | null;
+  project: Project;
   settingsActive: boolean;
   onNewProject: () => void;
-  onSelectProject: (projectId: string) => void;
   onClearActiveProject: () => void;
   onOpenSettings: () => void;
   onToggleCollapsed: () => void;
 }
 
-function projectTime(project: Project): string {
-  const date = new Date(project.updatedAt);
-  const today = new Date();
-  if (date.toDateString() === today.toDateString()) {
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  }
-  return date.toLocaleDateString([], { month: "short", day: "numeric" });
-}
-
 export function Sidebar({
   collapsed,
-  projects,
-  isProjectsLoading,
-  projectsError,
-  selectedProjectId,
-  activeProject,
+  project,
   settingsActive,
   onNewProject,
-  onSelectProject,
   onClearActiveProject,
   onOpenSettings,
   onToggleCollapsed,
 }: SidebarProps) {
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const searchRef = useRef<HTMLInputElement | null>(null);
-  const visibleProjects = projects.filter((project) => project.title.toLowerCase().includes(query.trim().toLowerCase()));
-
-  useEffect(() => {
-    if (searchOpen && !collapsed) {
-      searchRef.current?.focus();
-    }
-  }, [collapsed, searchOpen]);
-
   return (
     <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
       <div className="sidebar-logo-row">
@@ -85,82 +54,23 @@ export function Sidebar({
           <button
             className="sidebar-icon-button rail-search"
             type="button"
-            aria-label={activeProject ? "Show recent projects" : "Search projects"}
-            onClick={() => {
-              if (activeProject) {
-                onClearActiveProject();
-              }
-              onToggleCollapsed();
-              setSearchOpen(!activeProject);
-            }}
+            aria-label="Back to recent projects"
+            title="Recent projects"
+            onClick={onClearActiveProject}
           >
-            {activeProject ? <BackIcon size={18} /> : <SearchIcon size={18} />}
+            <BackIcon size={18} />
           </button>
-        ) : activeProject ? (
+        ) : (
           <div className="active-project-sidebar">
             <button className="active-project-back" type="button" onClick={onClearActiveProject}>
               <BackIcon size={14} />
               <span>Recent projects</span>
             </button>
             <div className="active-project-heading">
-              <h2 title={activeProject.title}>{activeProject.title}</h2>
-              {activeProject.path && <p title={activeProject.path}>{activeProject.path}</p>}
+              <h2 title={project.title}>{project.title}</h2>
+              {project.path && <p title={project.path}>{project.path}</p>}
             </div>
           </div>
-        ) : (
-          <>
-            <div className="sidebar-section-header">
-              {!searchOpen && <span>Projects</span>}
-              <div className={`sidebar-search ${searchOpen ? "open" : ""}`}>
-                <button
-                  type="button"
-                  aria-label={searchOpen ? "Close project search" : "Search projects"}
-                  onClick={() => {
-                    setSearchOpen((current) => !current);
-                    if (searchOpen) {
-                      setQuery("");
-                    }
-                  }}
-                >
-                  <SearchIcon />
-                </button>
-                {searchOpen && (
-                  <input
-                    ref={searchRef}
-                    value={query}
-                    placeholder="Search projects"
-                    aria-label="Search projects"
-                    onChange={(event) => setQuery(event.target.value)}
-                  />
-                )}
-              </div>
-            </div>
-            <nav className="project-list" aria-label="Projects" aria-busy={isProjectsLoading}>
-              {isProjectsLoading ? (
-                <p className="project-list-empty" role="status">Loading projects...</p>
-              ) : projectsError ? (
-                <p className="project-list-empty" role="alert">{projectsError}</p>
-              ) : (
-                <>
-                  {visibleProjects.map((project) => (
-                    <button
-                      className={`project-item ${project.id === selectedProjectId ? "active" : ""}`}
-                      key={project.id}
-                      type="button"
-                      title={project.title}
-                      aria-current={project.id === selectedProjectId ? "page" : undefined}
-                      onClick={() => onSelectProject(project.id)}
-                    >
-                      <span className="project-dot" aria-hidden="true" />
-                      <span className="project-title">{project.title}</span>
-                      <span className="project-time">{projectTime(project)}</span>
-                    </button>
-                  ))}
-                  {visibleProjects.length === 0 && <p className="project-list-empty" role="status">No matching projects</p>}
-                </>
-              )}
-            </nav>
-          </>
         )}
       </div>
 
