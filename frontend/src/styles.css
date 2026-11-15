@@ -614,11 +614,6 @@ textarea:focus-visible {
   font-size: 10px;
   line-height: 1.15;
   user-select: none;
-  transition: opacity 600ms ease;
-}
-
-.ascii-quill.fading {
-  opacity: 0;
 }
 
 .hero-quill {
@@ -627,8 +622,28 @@ textarea:focus-visible {
 }
 
 .ascii-quill.animated .ascii-quill-glyph {
-  animation: ascii-quill-reveal 900ms ease-out both;
-  animation-delay: var(--reveal-delay);
+  animation: ascii-quill-reveal 900ms ease-out var(--reveal-delay) both;
+}
+
+/* After the reveal, a highlight keeps travelling around each object's outline. */
+.ascii-quill.animated .ascii-quill-glyph.outline {
+  animation:
+    ascii-quill-reveal 900ms ease-out var(--reveal-delay) both,
+    ascii-quill-shimmer 4800ms linear var(--shimmer-delay) infinite;
+}
+
+@keyframes ascii-quill-shimmer {
+  0%,
+  32%,
+  100% {
+    color: var(--ds-text-2);
+    text-shadow: none;
+  }
+
+  10% {
+    color: var(--ds-accent);
+    text-shadow: 0 0 5px var(--ds-accent);
+  }
 }
 
 @keyframes ascii-quill-reveal {
