@@ -52,12 +52,22 @@ Request:
 }
 ```
 
-Response: `application/x-ndjson`. Each event is one JSON object followed by a newline.
+`project_id`, `title`, and `description` are optional. When `system_prompt` is omitted, the backend builds a default chat prompt from `title` and `description`.
+
+Response: `application/x-ndjson`. Each event is one JSON object followed by a newline. Assistant text arrives as keyed message segments; one response may contain several segments when tools are used.
 
 ```json
-{"type":"delta","content":"First text chunk"}
-{"type":"delta","content":" and another chunk"}
+{"type":"assistant_start","id":"assistant-3f1c...","created_at":"2026-09-19T10:00:00Z"}
+{"type":"assistant_delta","id":"assistant-3f1c...","content":"First text chunk"}
+{"type":"assistant_delta","id":"assistant-3f1c...","content":" and another chunk"}
+{"type":"assistant_end","id":"assistant-3f1c...","finished_at":"2026-09-19T10:00:01Z"}
 {"type":"done"}
+```
+
+During tool-enabled turns, each state change of a tool call is emitted as a `tool_call` event carrying the persisted record. Status moves `pending` → `running` → `completed` or `failed`, and the frontend replaces the previous state by `id`.
+
+```json
+{"type":"tool_call","tool_call":{"id":7,"conversation_id":3,"provider_call_id":"call_abc","tool_name":"read_file","input_data":{"path":"main.tex"},"output_data":null,"status":"running","error":null,"created_at":"2026-09-19T10:00:00Z","completed_at":null}}
 ```
 
 An error after streaming starts is:
@@ -74,7 +84,7 @@ An error before streaming starts is a non-2xx JSON response:
 
 Streaming: required, using NDJSON over the Fetch response body. SSE and WebSocket support are not required.
 
-When the selected project has a filesystem path, the backend starts the bundled MCP server for that project, sends its `read_file` and `list_files` definitions to the model, executes requested tools, and returns only the model's final text through the existing NDJSON events. Tool-enabled turns are buffered until tool execution finishes. Paths accepted by the MCP tools are relative to the selected project root and cannot escape it.
+When the selected project has a filesystem path, the backend starts the bundled MCP server for that project, sends its `read_file` and `list_files` definitions to the model, and runs up to five tool rounds. Each tool call is persisted to the project's conversation and reported through `tool_call` events. In tool-enabled turns, model text is not streamed token by token: each model turn's text is sent as one complete `assistant_start`/`assistant_delta`/`assistant_end` segment. Paths accepted by the MCP tools are relative to the selected project root and cannot escape it.
 
 Required: yes.
 
@@ -86,6 +96,60 @@ Replaces:
 - The text-output subset of Harness `session/event` streaming.
 - The text-output subset of the Harness agent/session prompt pipeline.
 - Harness `session.cancel` is replaced on the client by aborting this request.
+
+### List projects
+
+```text
+GET /api/projects
+```
+
+Purpose: load the sidebar project list on startup.
+
+Response: an array of project objects.
+
+```json
+[
+  {
+    "id": 12,
+    "name": "Thesis",
+    "description": {
+      "tone": "Academic",
+      "writing_style": "Formal",
+      "academic_level": "Graduate",
+      "language": "English",
+      "essay_type": "Argumentative",
+      "additional_instructions": null
+    },
+    "path": "/home/user/thesis",
+    "conversations": [
+      { "id": 3, "project_id": 12, "messages": [], "created_at": "...", "updated_at": "..." }
+    ],
+    "created_at": "...",
+    "updated_at": "...",
+    "opened_at": "..."
+  }
+]
+```
+
+`description` and `path` may be `null`. The frontend flattens each project's conversation messages into its conversation view.
+
+### Create a project
+
+```text
+POST /api/projects
+```
+
+Request: `{ "name": "Thesis", "description": { ... } | null, "path": "/abs/path" | null }`. `description` fields must use the allowed values enforced in `backend/blueprints/projects.py`.
+
+Response: `201` with the created project object. `400` on validation errors, `409` if the name or path already exists.
+
+### Mark a project opened
+
+```text
+POST /api/projects/:projectId/open
+```
+
+No request body. Updates `opened_at` and returns the project, or `404`.
 
 ### List supported providers
 
@@ -342,13 +406,13 @@ Replaces: the callback/credential completion portion of Harness provider onboard
 
 The following retained features do not require backend endpoints:
 
-- Sidebar project creation and selection use React session state seeded by `frontend/src/data/mockProjects.ts`.
+- Reading, listing, and saving files inside a project directory use Tauri commands (`frontend/src/services/projectFilesystem.ts` → `src-tauri/src/main.rs`), not Flask, and are only available in the desktop app.
 - Active provider connection and per-connection model preference use `localStorage` key `cowriter.chat-preferences.v1`.
 - Message copy uses the browser clipboard API.
 - Stop response uses `AbortController` on the active `/api/chat` request.
 - Conversation zoom, bottom-follow, jump-to-latest, streaming status, and error/stopped presentation are client behavior.
 
-Project messages are not durable across an application reload. The existing `GET /api/projects` and `POST /api/projects` routes are intentionally not called because they do not provide the append/update operations required for a complete conversation persistence flow. No speculative conversation endpoints were added to the frontend contract.
+Projects and tool calls are persisted by the backend, but chat messages are not: `/api/chat` does not append user or assistant messages to the conversation, so messages exchanged after a project is created are lost on reload. No speculative message-append endpoints were added to the frontend contract.
 
 ## Harness API Replacement Inventory
 
@@ -358,7 +422,7 @@ Project messages are not durable across an application reload. The existing `GET
 | --- | --- |
 | `session.prompt` | `POST /api/chat` |
 | `session.cancel` | Abort the active `/api/chat` request |
-| `session/event` assistant text frames | NDJSON `delta`, `done`, and `error` events |
+| `session/event` assistant text frames | NDJSON `assistant_start`, `assistant_delta`, `assistant_end`, `tool_call`, `done`, and `error` events |
 | `session.models`, `llm.models` | `GET /api/provider-connections/:connectionId/models` |
 | `llm.providers` and LLM adapter registry | `GET /api/providers/` |
 | Provider route/configuration state | `GET /api/provider-connections/` |
@@ -391,7 +455,7 @@ These coding-agent or runtime-management features are not used by the Cowriter f
 - Sandbox, E2B, Landlock, local execution policy, and permission presets for tool execution.
 - LSP and coding-specific syntax/tool result surfaces.
 
-Original APIs removed: `host.pickDirectory`, `host.listDirectory`, `host.createDirectory`, `host.openPath`, `fileReferences.list`, `sessionReferenceResolver.candidates`, `skill.list`, and all tool-call/event rendering contracts.
+Original APIs removed: `host.pickDirectory`, `host.listDirectory`, `host.createDirectory`, `host.openPath`, `fileReferences.list`, `sessionReferenceResolver.candidates`, `skill.list`, and the Harness tool-call/event rendering contracts (Cowriter renders its own `tool_call` stream events).
 
 ### Agent orchestration
 
@@ -438,7 +502,7 @@ Original APIs removed: all `messageFeedback.*` operations and `host.describe`.
 
 The following Harness experiences were not preserved because the existing Cowriter backend does not expose the corresponding writing-oriented data:
 
-- Durable project and conversation history, including message append/update.
+- Durable conversation history, including message append/update (projects themselves are persisted).
 - Conversation search, rename, delete, fork, and archive.
 - History pagination for long conversations.
 - Image or document attachments.
