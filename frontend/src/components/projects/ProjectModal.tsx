@@ -13,18 +13,16 @@ type SubmissionStatus = "idle" | "submitting" | "success" | "error";
 
 interface ProjectModalProps {
   filesystemService: ProjectFilesystemService;
-  initialName?: string;
   onCreateProject: (input: CreateProjectInput) => Promise<void>;
   onClose: () => void;
 }
 
 export function ProjectModal({
   filesystemService,
-  initialName = "",
   onCreateProject,
   onClose,
 }: ProjectModalProps) {
-  const [name, setName] = useState(initialName);
+  const [name, setName] = useState("");
   const [context, setContext] = useState<ProjectContextValue>(DEFAULT_PROJECT_CONTEXT);
   const [directoryPath, setDirectoryPath] = useState<string | null>(null);
   const [status, setStatus] = useState<SubmissionStatus>("idle");

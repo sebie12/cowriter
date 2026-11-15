@@ -83,7 +83,6 @@ export default function App({ api }: { api: CowriterApi }) {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
-  const [pendingProjectMessage, setPendingProjectMessage] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [sendingProjectId, setSendingProjectId] = useState<string | null>(null);
@@ -429,10 +428,6 @@ export default function App({ api }: { api: CowriterApi }) {
       return;
     }
     if (!selectedProject) {
-      setPendingProjectMessage(trimmedContent);
-      setIsSettingsOpen(false);
-      setIsProjectModalOpen(true);
-      setError(null);
       return;
     }
     await sendMessageToProject(selectedProject, trimmedContent);
@@ -446,12 +441,6 @@ export default function App({ api }: { api: CowriterApi }) {
     collapseSidebarOnNarrowScreen();
     setIsSettingsOpen(false);
     setError(null);
-
-    const initialMessage = pendingProjectMessage;
-    setPendingProjectMessage(null);
-    if (initialMessage) {
-      void sendMessageToProject(project, initialMessage);
-    }
   };
 
   const handleSelectProject = (projectId: string) => {
@@ -523,7 +512,6 @@ export default function App({ api }: { api: CowriterApi }) {
   }, [selectedProjectId]);
 
   const openNewProject = () => {
-    setPendingProjectMessage(null);
     setIsSettingsOpen(false);
     setIsProjectModalOpen(true);
     setError(null);
@@ -532,7 +520,6 @@ export default function App({ api }: { api: CowriterApi }) {
   const openSettings = () => {
     setIsSettingsOpen(true);
     setIsProjectModalOpen(false);
-    setPendingProjectMessage(null);
     setError(null);
   };
 
@@ -607,12 +594,8 @@ export default function App({ api }: { api: CowriterApi }) {
       {isProjectModalOpen && (
         <ProjectModal
           filesystemService={projectFilesystemService}
-          initialName={pendingProjectMessage ? titleFromMessage(pendingProjectMessage) : undefined}
           onCreateProject={handleCreateProject}
-          onClose={() => {
-            setIsProjectModalOpen(false);
-            setPendingProjectMessage(null);
-          }}
+          onClose={() => setIsProjectModalOpen(false)}
         />
       )}
       {isSettingsOpen && (

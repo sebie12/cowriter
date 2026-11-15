@@ -9,7 +9,7 @@ interface ChatTabProps {
   project: Project;
   isActive: boolean;
   isThinking: boolean;
-  composer: Omit<ComposerProps, "hero">;
+  composer: ComposerProps;
 }
 
 export function ChatTab({ project, isActive, isThinking, composer }: ChatTabProps) {
@@ -92,7 +92,7 @@ export function ChatTab({ project, isActive, isThinking, composer }: ChatTabProp
         </div>
       )}
       <div className="composer-seat">
-        <Composer hero={false} {...composer} />
+        <Composer {...composer} />
       </div>
     </div>
   );
