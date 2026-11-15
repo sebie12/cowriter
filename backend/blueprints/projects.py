@@ -1,7 +1,8 @@
-from flask import Blueprint, jsonify, request, url_for
+from flask import Blueprint, current_app, jsonify, request, url_for
 from sqlalchemy.exc import IntegrityError
 
-from backend.database import Conversation, Message, Project, db
+from backend.llm import LLMError
+from backend.database import Conversation, Message, Project, Reference, db
 from backend.prompts import SystemPrompts
 from backend.services.project_service import ProjectService
 
@@ -166,3 +167,155 @@ def open_project(project_id):
         return jsonify({"error": "Project not found."}), 404
 
     return jsonify(project.to_dict()), 200
+
+
+MAX_DRAFT_BYTES = 2_000_000
+
+
+@projects_bp.put("/<int:project_id>/draft")
+def save_draft(project_id):
+    project = ProjectService().get_project_by_id(project_id)
+    if not project:
+        return jsonify({"error": "Project not found."}), 404
+
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or "draft" not in payload:
+        return jsonify({"error": "draft is required."}), 400
+    draft = payload["draft"]
+    if draft is not None and (not isinstance(draft, dict) or draft.get("type") != "doc"):
+        return jsonify({"error": "draft must be an editor document or null."}), 400
+    if len(request.get_data()) > MAX_DRAFT_BYTES:
+        return jsonify({"error": "draft is too large."}), 413
+
+    project.draft = draft
+    db.session.commit()
+    return jsonify({"draft": project.draft, "updated_at": project.to_dict()["updated_at"]})
+
+
+def _optional_string(payload, field_name, max_length):
+    value = payload.get(field_name)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"{field_name} must be a string or null.")
+    value = value.strip()
+    if len(value) > max_length:
+        raise ValueError(f"{field_name} must be {max_length} characters or fewer.")
+    return value or None
+
+
+def _optional_int(payload, field_name):
+    value = payload.get(field_name)
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{field_name} must be an integer or null.")
+    return value
+
+
+def parse_reference_payload(payload):
+    if not isinstance(payload, dict):
+        raise ValueError("Request body must be a JSON object.")
+    paper_id = _optional_string(payload, "paper_id", 100)
+    title = _optional_string(payload, "title", 1000)
+    if not paper_id:
+        raise ValueError("paper_id is required.")
+    if not title:
+        raise ValueError("title is required.")
+    authors = payload.get("authors", [])
+    if not isinstance(authors, list) or not all(isinstance(author, str) for author in authors):
+        raise ValueError("authors must be an array of strings.")
+
+    return {
+        "paper_id": paper_id,
+        "title": title,
+        "year": _optional_int(payload, "year"),
+        "authors": [author.strip() for author in authors if author.strip()][:200],
+        "venue": _optional_string(payload, "venue", 500),
+        "abstract": _optional_string(payload, "abstract", 20_000),
+        "tldr": _optional_string(payload, "tldr", 5_000),
+        "url": _optional_string(payload, "url", 2048),
+        "pdf_url": _optional_string(payload, "pdf_url", 2048),
+        "doi": _optional_string(payload, "doi", 255),
+        "citation_count": _optional_int(payload, "citation_count"),
+    }
+
+
+@projects_bp.get("/<int:project_id>/references")
+def list_references(project_id):
+    project = ProjectService().get_project_by_id(project_id)
+    if not project:
+        return jsonify({"error": "Project not found."}), 404
+    return jsonify([reference.to_dict() for reference in project.references])
+
+
+@projects_bp.post("/<int:project_id>/references")
+def save_reference(project_id):
+    project = ProjectService().get_project_by_id(project_id)
+    if not project:
+        return jsonify({"error": "Project not found."}), 404
+    try:
+        values = parse_reference_payload(request.get_json(silent=True))
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+
+    existing = Reference.query.filter_by(project_id=project_id, paper_id=values["paper_id"]).first()
+    if existing is not None:
+        return jsonify({"error": "This paper is already saved.", "reference": existing.to_dict()}), 409
+
+    reference = Reference(project_id=project_id, **values)
+    db.session.add(reference)
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"error": "This paper is already saved."}), 409
+    return jsonify(reference.to_dict()), 201
+
+
+@projects_bp.delete("/<int:project_id>/references/<int:reference_id>")
+def delete_reference(project_id, reference_id):
+    reference = db.session.get(Reference, reference_id)
+    if reference is None or reference.project_id != project_id:
+        return jsonify({"error": "Reference not found."}), 404
+    db.session.delete(reference)
+    db.session.commit()
+    return ("", 204)
+
+
+@projects_bp.post("/<int:project_id>/proofread")
+def proofread(project_id):
+    project = ProjectService().get_project_by_id(project_id)
+    if not project:
+        return jsonify({"error": "Project not found."}), 404
+
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"error": "Request body must be a JSON object."}), 400
+    connection_id = payload.get("connection_id")
+    provider = payload.get("provider")
+    model = payload.get("model")
+    text = payload.get("text")
+    if isinstance(connection_id, bool) or not isinstance(connection_id, int) or connection_id < 1:
+        return jsonify({"error": "connection_id is required."}), 400
+    if not isinstance(provider, str) or not provider.strip():
+        return jsonify({"error": "provider is required."}), 400
+    if not isinstance(model, str) or not model.strip():
+        return jsonify({"error": "model is required."}), 400
+    if not isinstance(text, str):
+        return jsonify({"error": "text is required."}), 400
+
+    project_path = project.path.strip() if isinstance(project.path, str) and project.path.strip() else None
+    try:
+        issues = current_app.extensions["proofread_service"].review(
+            connection_id=connection_id,
+            provider=provider.strip(),
+            model=model.strip(),
+            text=text,
+            description=project.description,
+            references=[reference.to_dict() for reference in project.references],
+            project_path=project_path,
+        )
+    except LLMError as error:
+        return jsonify({"error": error.message}), error.status_code
+    return jsonify({"issues": issues})

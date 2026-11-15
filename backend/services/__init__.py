@@ -3,11 +3,15 @@
 from .chat_service import ChatService
 from .conversation_service import ConversationService
 from .project_service import ProjectService
+from .proofread_service import ProofreadService
+from .semantic_scholar import SemanticScholarClient
 from .tool_service import ToolCallService
 
 __all__ = [
     "ChatService",
     "ConversationService",
     "ProjectService",
+    "ProofreadService",
+    "SemanticScholarClient",
     "ToolCallService",
 ]

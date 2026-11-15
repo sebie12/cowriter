@@ -93,12 +93,21 @@ class Project(db.Model):
     description = db.Column(db.String(255), nullable=True)
     path = db.Column(db.String(255), nullable=True, unique=True)
     language = db.Column(db.String(10), nullable=True, default="en")
+    draft = db.Column(db.JSON, nullable=True)
 
     conversations = db.relationship(
         "Conversation",
         back_populates="project",
         cascade="all, delete-orphan",
         order_by=lambda: (Conversation.created_at, Conversation.id),
+        passive_deletes=True,
+    )
+
+    references = db.relationship(
+        "Reference",
+        back_populates="project",
+        cascade="all, delete-orphan",
+        order_by=lambda: (Reference.created_at, Reference.id),
         passive_deletes=True,
     )
 
@@ -130,6 +139,7 @@ class Project(db.Model):
                 conversation.to_dict() for conversation in self.conversations
             ],
             "path": self.path,
+            "draft": self.draft,
             "created_at": _isoformat(self.created_at),
             "updated_at": _isoformat(self.updated_at),
             "opened_at": _isoformat(self.opened_at),
@@ -267,4 +277,63 @@ class ToolCall(db.Model):
             "error": self.error,
             "created_at": _isoformat(self.created_at),
             "completed_at": _isoformat(self.completed_at),
+        }
+
+
+class Reference(db.Model):
+    __tablename__ = "references"
+    __table_args__ = (
+        db.Index(
+            "uq_references_project_paper",
+            "project_id",
+            "paper_id",
+            unique=True,
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(
+        db.Integer,
+        db.ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    project = db.relationship("Project", back_populates="references")
+
+    paper_id = db.Column(db.String(100), nullable=False)
+    title = db.Column(db.String(1000), nullable=False)
+    year = db.Column(db.Integer, nullable=True)
+    authors = db.Column(db.JSON, nullable=False, default=list)
+    venue = db.Column(db.String(500), nullable=True)
+    abstract = db.Column(db.Text, nullable=True)
+    tldr = db.Column(db.Text, nullable=True)
+    url = db.Column(db.String(2048), nullable=True)
+    pdf_url = db.Column(db.String(2048), nullable=True)
+    doi = db.Column(db.String(255), nullable=True)
+    citation_count = db.Column(db.Integer, nullable=True)
+
+    created_at = db.Column(
+        db.DateTime,
+        default=db.func.current_timestamp()
+    )
+
+    def __str__(self):
+        return self.title
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "project_id": self.project_id,
+            "paper_id": self.paper_id,
+            "title": self.title,
+            "year": self.year,
+            "authors": list(self.authors or []),
+            "venue": self.venue,
+            "abstract": self.abstract,
+            "tldr": self.tldr,
+            "url": self.url,
+            "pdf_url": self.pdf_url,
+            "doi": self.doi,
+            "citation_count": self.citation_count,
+            "created_at": _isoformat(self.created_at),
         }
