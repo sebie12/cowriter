@@ -94,7 +94,7 @@ export function ResearchTab({ api, isActive, references }: ResearchTabProps) {
           <SearchIcon aria-hidden="true" />
           <input
             type="search"
-            placeholder="Search papers on Semantic Scholar…"
+            placeholder="Search papers on OpenAlex…"
             aria-label="Search papers"
             value={query}
             maxLength={300}
@@ -141,7 +141,7 @@ export function ResearchTab({ api, isActive, references }: ResearchTabProps) {
               ) : (
                 <>
                   <h2>Find sources for your writing</h2>
-                  <p>Search Semantic Scholar, scroll through the results, and save the papers you want to cite.</p>
+                  <p>Search OpenAlex, scroll through the results, and save the papers you want to cite.</p>
                 </>
               )}
             </div>

@@ -167,7 +167,7 @@ Response: `200` with `{ "draft", "updated_at" }`. `400` if `draft` is missing or
 GET /api/research/search?q=<query>&offset=<n>
 ```
 
-Proxies the Semantic Scholar Graph API (`/graph/v1/paper/search`, 20 results per page). The backend sends `SEMANTIC_SCHOLAR_API_KEY` as `x-api-key` when that variable is set. Without a key, requests share Semantic Scholar's public rate limit and often get `429`.
+Proxies the OpenAlex works search (`https://api.openalex.org/works?search=…`, 20 results per page). `offset` is rounded down to a page boundary, and OpenAlex only pages through the first 10,000 results. The backend sends `OPENALEX_API_KEY` as `api_key` when that variable is set. Without a key, requests share a small free daily budget per IP address. OpenAlex returns abstracts as an inverted index, which the backend turns back into text. OpenAlex has no TLDRs, so `tldr` is always `null`.
 
 Response:
 
@@ -178,23 +178,23 @@ Response:
   "next": 20,
   "papers": [
     {
-      "paper_id": "204e3073870fae3d05bcbc2f6a8e263d9b72e776",
+      "paper_id": "W2741809807",
       "title": "Attention Is All You Need",
       "year": 2017,
       "authors": ["Ashish Vaswani", "Noam Shazeer"],
       "venue": "Neural Information Processing Systems",
       "abstract": "...",
-      "tldr": "...",
+      "tldr": null,
       "citation_count": 100000,
       "doi": "10.48550/arXiv.1706.03762",
-      "url": "https://www.semanticscholar.org/paper/...",
+      "url": "https://openalex.org/W2741809807",
       "pdf_url": "https://arxiv.org/pdf/1706.03762"
     }
   ]
 }
 ```
 
-`next` is `null` on the last page. Errors: `400` for an empty or over-300-character query or an invalid offset, `429` when Semantic Scholar rate-limits, and `502` when it is unreachable.
+`next` is `null` on the last page. Errors: `400` for an empty or over-300-character query or an invalid offset, `429` when OpenAlex rate-limits, and `502` when it is unreachable.
 
 ### Saved references
 

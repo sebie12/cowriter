@@ -1,4 +1,5 @@
 import asyncio
+import difflib
 import json
 import re
 from typing import Any
@@ -149,6 +150,22 @@ def _find_quote(text: str, quote: str, search_from: int) -> tuple[int, int] | No
     return match.start(), match.end()
 
 
+def _narrow_spelling_span(
+    text: str, start: int, end: int, suggestion: str | None
+) -> tuple[int, int]:
+    """Models often quote a phrase but suggest only the corrected word; shrink to that word."""
+    if not suggestion or any(character.isspace() for character in suggestion):
+        return start, end
+    words = list(re.finditer(r"\S+", text[start:end]))
+    if len(words) < 2:
+        return start, end
+    best = max(
+        words,
+        key=lambda word: difflib.SequenceMatcher(None, word.group(0).lower(), suggestion.lower()).ratio(),
+    )
+    return start + best.start(), start + best.end()
+
+
 def locate_issues(
     text: str,
     issues: list[dict[str, Any]],
@@ -172,7 +189,11 @@ def locate_issues(
         next_search_by_quote[quote] = end
 
         suggestion = issue.get("suggestion")
-        suggestion = suggestion if isinstance(suggestion, str) and suggestion != quote else None
+        suggestion = suggestion.strip() if isinstance(suggestion, str) else None
+        if issue_type == "spelling":
+            start, end = _narrow_spelling_span(text, start, end, suggestion)
+        if suggestion is not None and suggestion == text[start:end]:
+            suggestion = None
         reference_ids = [
             reference_id
             for reference_id in issue.get("reference_ids") or ()

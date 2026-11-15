@@ -32,7 +32,7 @@ export function formatAuthors(authors: string[], max = 3): string {
 export function PaperDetail({ paper, savedReference, isPending, onSave, onRemove }: PaperDetailProps) {
   const [linkError, setLinkError] = useState<string | null>(null);
   const links = [
-    { label: "Semantic Scholar", url: httpsUrl(paper.url) },
+    { label: "OpenAlex", url: httpsUrl(paper.url) },
     { label: "DOI", url: paper.doi ? `https://doi.org/${encodeURI(paper.doi)}` : null },
     { label: "PDF", url: httpsUrl(paper.pdfUrl) },
   ].filter((link): link is { label: string; url: string } => link.url !== null);
