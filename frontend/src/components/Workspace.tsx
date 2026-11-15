@@ -1,5 +1,4 @@
 import { useEffect, useId, useRef, useState } from "react";
-import cowriterPet from "../assets/icons/cowriter_pet.svg";
 import { useReferences } from "../hooks/useReferences";
 import type { CowriterApi } from "../services/backend/types";
 import type { DraftDocument, Project } from "../types";
@@ -8,6 +7,7 @@ import { ChatTab } from "./chat/ChatTab";
 import { Composer } from "./composer/Composer";
 import type { ProviderOption } from "./composer/ModelSelector";
 import { ResearchTab } from "./research/ResearchTab";
+import { AsciiQuill } from "./ui/AsciiQuill";
 import { WorkTab, type ProofreadTarget } from "./work/WorkTab";
 
 type ProjectView = "work" | "research" | "chat";
@@ -151,10 +151,8 @@ export function Workspace({
         <div className="workspace-body hero">
           <div className="hero-stage">
             <div className="hero-stack">
-              <h1 className="hero-headline">
-                <span className="hero-mark"><img src={cowriterPet} alt="" /></span>
-                <span>How can I help with your writing?</span>
-              </h1>
+              <AsciiQuill className="hero-quill" />
+              <h1 className="hero-headline">How can I help with your writing?</h1>
               <div className="hero-composer">
                 <HeroGlow />
                 <Composer hero {...composer} />

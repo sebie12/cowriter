@@ -187,8 +187,7 @@ textarea:focus-visible {
   padding: 0;
 }
 
-.brand-mark,
-.hero-mark {
+.brand-mark {
   display: grid;
   place-items: center;
 }
@@ -199,8 +198,7 @@ textarea:focus-visible {
 }
 
 .brand-mark img,
-.rail-brand img,
-.hero-mark img {
+.rail-brand img {
   width: 100%;
   height: 100%;
   object-fit: contain;
@@ -588,7 +586,7 @@ textarea:focus-visible {
   position: relative;
   z-index: 1;
   width: min(720px, 100%);
-  transform: translateY(-8.4rem);
+  transform: translateY(-4.5rem);
 }
 
 .hero-headline {
@@ -603,10 +601,39 @@ textarea:focus-visible {
   letter-spacing: -0.035em;
 }
 
-.hero-mark {
-  width: 62px;
-  height: 62px;
-  flex: 0 0 62px;
+.ascii-quill {
+  margin: 0;
+  color: var(--ds-text-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 14px;
+  line-height: 1.2;
+  user-select: none;
+}
+
+.hero-quill {
+  width: fit-content;
+  margin: 0 auto 22px;
+  /* The nib sits left of centre; shift so the quill and line read as one centred mark. */
+  transform: translateX(-6px);
+}
+
+.ascii-quill-ink {
+  color: var(--ds-accent);
+  font-weight: 700;
+  transition: opacity 600ms ease;
+}
+
+.ascii-quill-ink.fading {
+  opacity: 0;
+}
+
+.ascii-quill-head {
+  color: var(--ds-text);
+  text-shadow: 0 0 6px var(--ds-accent);
+}
+
+.ascii-quill-pending {
+  visibility: hidden;
 }
 
 .hero-composer {
@@ -2293,7 +2320,6 @@ textarea:focus-visible {
 
   .brand-mark img,
   .rail-brand img,
-  .hero-mark img,
   .provider-logo {
     filter: none;
   }
@@ -2513,6 +2539,7 @@ textarea:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .sidebar,
   .provider-auth-panel,
+  .ascii-quill-ink,
   .model-selector-trigger svg {
     transition: none;
     animation: none;
