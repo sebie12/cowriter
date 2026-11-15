@@ -12,8 +12,8 @@ export function QuillMark({ className = "" }: { className?: string }) {
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <path d="M47 2 C 52 1 54 3 52 7 C 47 18 40 30 29 40 C 23 45 17 47 12 47 C 13 39 22 24 47 2 Z" />
-      <path d="M44 7 C 34 20 22 34 12 47 L 3 68" />
+      <path d="M46 3 C 50 1 54 1 53 6 C 48 18 40 30 29 40 C 23 45 17 47 12 47 C 13 39 22 24 46 3 Z" />
+      <path d="M47 9 C 41 18 28 33 12 47 L 3 68" />
     </svg>
   );
 }
