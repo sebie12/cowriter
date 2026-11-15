@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Landing } from "./components/Landing";
 import { ProjectModal } from "./components/projects/ProjectModal";
 import { SettingsModal } from "./components/settings/SettingsModal";
 import { Sidebar } from "./components/Sidebar";
@@ -521,37 +522,48 @@ export default function App({ api }: { api: CowriterApi }) {
     }
   }, [selectedProjectId]);
 
+  const openNewProject = () => {
+    setPendingProjectMessage(null);
+    setIsSettingsOpen(false);
+    setIsProjectModalOpen(true);
+    setError(null);
+  };
+
+  const openSettings = () => {
+    setIsSettingsOpen(true);
+    setIsProjectModalOpen(false);
+    setPendingProjectMessage(null);
+    setError(null);
+  };
+
   const proofreadTarget = activeConnection && selectedModelId && !isModelsLoading
     ? { connectionId: activeConnection.id, provider: activeConnection.providerId, model: selectedModelId }
     : null;
 
   return (
     <div className="app-shell">
+      {selectedProject === null ? (
+        <Landing
+          projects={projects}
+          isProjectsLoading={isProjectsLoading}
+          projectsError={projectsError}
+          error={error}
+          onNewProject={openNewProject}
+          onSelectProject={handleSelectProject}
+          onOpenSettings={openSettings}
+        />
+      ) : (
+      <>
       <Sidebar
         collapsed={sidebarCollapsed}
-        projects={projects}
-        isProjectsLoading={isProjectsLoading}
-        projectsError={projectsError}
-        selectedProjectId={selectedProjectId}
+        project={selectedProject}
         settingsActive={isSettingsOpen}
-        activeProject={selectedProject}
-        onNewProject={() => {
-          setPendingProjectMessage(null);
-          setIsSettingsOpen(false);
-          setIsProjectModalOpen(true);
-          setError(null);
-        }}
-        onSelectProject={handleSelectProject}
+        onNewProject={openNewProject}
         onClearActiveProject={() => {
           setSelectedProjectId(null);
           setError(null);
         }}
-        onOpenSettings={() => {
-          setIsSettingsOpen(true);
-          setIsProjectModalOpen(false);
-          setPendingProjectMessage(null);
-          setError(null);
-        }}
+        onOpenSettings={openSettings}
         onToggleCollapsed={() => setSidebarCollapsed((collapsed) => !collapsed)}
       />
       <Workspace
@@ -588,13 +600,10 @@ export default function App({ api }: { api: CowriterApi }) {
         onSendMessage={handleSendMessage}
         onStopMessage={handleStopMessage}
         onDraftChange={handleDraftChange}
-        onOpenSettings={() => {
-          setIsSettingsOpen(true);
-          setIsProjectModalOpen(false);
-          setPendingProjectMessage(null);
-          setError(null);
-        }}
+        onOpenSettings={openSettings}
       />
+      </>
+      )}
       {isProjectModalOpen && (
         <ProjectModal
           filesystemService={projectFilesystemService}
