@@ -1,6 +1,6 @@
 from flask import Blueprint, current_app, jsonify, request
 
-from backend.services.semantic_scholar import ResearchError
+from backend.services.openalex import ResearchError
 
 
 research_bp = Blueprint("research", __name__, url_prefix="/api/research")

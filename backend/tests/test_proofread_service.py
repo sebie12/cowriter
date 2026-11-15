@@ -69,6 +69,14 @@ class ProofreadParsingTests(unittest.TestCase):
         )
         self.assertEqual([issue["start"] for issue in issues], [0, 17])
 
+    def test_narrows_phrase_spelling_quote_to_the_corrected_word(self):
+        text = "This is a well knwon fact."
+        issues = locate_issues(
+            text, [{"type": "spelling", "quote": "well knwon", "suggestion": "known"}], set()
+        )
+        self.assertEqual(issues[0]["quote"], "knwon")
+        self.assertEqual(issues[0]["suggestion"], "known")
+
     def test_matches_quotes_with_different_whitespace(self):
         text = "A long\nsentence here."
         issues = locate_issues(text, [{"type": "style", "quote": "long sentence"}], set())

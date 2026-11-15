@@ -2,11 +2,12 @@ import io
 import json
 import unittest
 from urllib.error import HTTPError
+from urllib.parse import parse_qs, urlparse
 
 from flask import Flask
 
 from backend.blueprints.research import research_bp
-from backend.services.semantic_scholar import SemanticScholarClient, normalize_paper
+from backend.services.openalex import OpenAlexClient, normalize_work, rebuild_abstract
 
 
 class FakeResponse(io.BytesIO):
@@ -25,67 +26,84 @@ def opener_returning(payload, captured=None):
     return opener
 
 
-class SemanticScholarClientTests(unittest.TestCase):
-    def test_normalizes_papers_and_skips_invalid_records(self):
+WORK = {
+    "id": "https://openalex.org/W2741809807",
+    "display_name": " Attention Is All You Need ",
+    "publication_year": 2017,
+    "authorships": [
+        {"author": {"display_name": "Ashish Vaswani"}},
+        {"author": {"display_name": ""}},
+        {"author": None},
+    ],
+    "primary_location": {"source": {"display_name": "NeurIPS"}},
+    "abstract_inverted_index": {"Transformers": [0], "attention.": [2], "use": [1]},
+    "cited_by_count": 100,
+    "doi": "https://doi.org/10.48550/arXiv.1706.03762",
+    "open_access": {"oa_url": "https://arxiv.org/abs/1706.03762"},
+    "best_oa_location": {"pdf_url": "https://arxiv.org/pdf/1706.03762"},
+}
+
+
+class OpenAlexClientTests(unittest.TestCase):
+    def test_normalizes_works_and_skips_invalid_records(self):
         captured = []
-        client = SemanticScholarClient(
+        client = OpenAlexClient(
             api_key="secret",
-            opener=opener_returning({
-                "total": 2,
-                "offset": 0,
-                "next": 20,
-                "data": [
-                    {
-                        "paperId": "abc",
-                        "title": " Attention Is All You Need ",
-                        "year": 2017,
-                        "authors": [{"authorId": "1", "name": "Ashish Vaswani"}, {"name": ""}],
-                        "venue": "NeurIPS",
-                        "abstract": "Transformers.",
-                        "tldr": {"model": "tldr@v2", "text": "A new architecture."},
-                        "citationCount": 100,
-                        "externalIds": {"DOI": "10.1/xyz"},
-                        "url": "https://example.org/abc",
-                        "openAccessPdf": {"url": "https://example.org/abc.pdf"},
-                    },
-                    {"paperId": "missing-title"},
-                ],
-            }, captured),
+            opener=opener_returning(
+                {"meta": {"count": 45}, "results": [WORK, {"id": "https://openalex.org/W1"}] + [WORK] * 18},
+                captured,
+            ),
         )
 
         result = client.search("  attention  ", offset=0)
 
-        self.assertEqual(result["total"], 2)
+        self.assertEqual(result["total"], 45)
         self.assertEqual(result["next"], 20)
-        self.assertEqual(len(result["papers"]), 1)
         paper = result["papers"][0]
+        self.assertEqual(paper["paper_id"], "W2741809807")
         self.assertEqual(paper["title"], "Attention Is All You Need")
         self.assertEqual(paper["authors"], ["Ashish Vaswani"])
-        self.assertEqual(paper["tldr"], "A new architecture.")
-        self.assertEqual(paper["doi"], "10.1/xyz")
-        self.assertEqual(paper["pdf_url"], "https://example.org/abc.pdf")
-        self.assertIn("query=attention", captured[0].full_url)
-        self.assertEqual(captured[0].get_header("X-api-key"), "secret")
-
-    def test_retries_without_tldr_when_fields_are_rejected(self):
-        requests = []
-
-        def opener(request, timeout):
-            requests.append(request.full_url)
-            if "tldr" in request.full_url:
-                raise HTTPError(request.full_url, 400, "Bad Request", {}, None)
-            return FakeResponse(json.dumps({"total": 0, "data": []}).encode("utf-8"))
-
-        result = SemanticScholarClient(api_key="", opener=opener).search("llm")
-        self.assertEqual(result["papers"], [])
-        self.assertEqual(len(requests), 2)
-        self.assertNotIn("tldr", requests[1])
-
-    def test_normalize_handles_missing_optional_fields(self):
-        paper = normalize_paper({"paperId": "p", "title": "T", "tldr": None, "authors": None})
-        self.assertEqual(paper["authors"], [])
+        self.assertEqual(paper["venue"], "NeurIPS")
+        self.assertEqual(paper["abstract"], "Transformers use attention.")
         self.assertIsNone(paper["tldr"])
-        self.assertIsNone(paper["year"])
+        self.assertEqual(paper["doi"], "10.48550/arXiv.1706.03762")
+        self.assertEqual(paper["url"], "https://openalex.org/W2741809807")
+        self.assertEqual(paper["pdf_url"], "https://arxiv.org/pdf/1706.03762")
+        self.assertEqual(len(result["papers"]), 19)
+
+        params = parse_qs(urlparse(captured[0].full_url).query)
+        self.assertEqual(params["search"], ["attention"])
+        self.assertEqual(params["page"], ["1"])
+        self.assertEqual(params["per-page"], ["20"])
+        self.assertEqual(params["api_key"], ["secret"])
+
+    def test_offsets_map_to_pages_and_last_page_has_no_next(self):
+        captured = []
+        client = OpenAlexClient(
+            api_key="",
+            opener=opener_returning({"meta": {"count": 45}, "results": [WORK] * 5}, captured),
+        )
+        result = client.search("llm", offset=40)
+        self.assertEqual(parse_qs(urlparse(captured[0].full_url).query)["page"], ["3"])
+        self.assertNotIn("api_key", captured[0].full_url)
+        self.assertIsNone(result["next"])
+
+    def test_rebuild_abstract_handles_missing_index(self):
+        self.assertIsNone(rebuild_abstract(None))
+        self.assertIsNone(rebuild_abstract({}))
+        self.assertEqual(rebuild_abstract({"b": [1], "a": [0, 2]}), "a b a")
+
+    def test_normalize_falls_back_to_open_access_url(self):
+        work = {**WORK, "best_oa_location": None, "doi": None}
+        paper = normalize_work(work)
+        self.assertEqual(paper["pdf_url"], "https://arxiv.org/abs/1706.03762")
+        self.assertIsNone(paper["doi"])
+
+    def test_rejects_offsets_past_the_paging_limit(self):
+        client = OpenAlexClient(api_key="", opener=opener_returning({}))
+        with self.assertRaises(Exception) as raised:
+            client.search("llm", offset=10_000)
+        self.assertEqual(raised.exception.status_code, 400)
 
 
 class FakeResearchClient:
@@ -109,13 +127,13 @@ class ResearchRouteTests(unittest.TestCase):
         return app
 
     def test_returns_search_results(self):
-        client = FakeResearchClient(result={"total": 0, "offset": 5, "next": None, "papers": []})
-        response = self.make_app(client).test_client().get("/api/research/search?q=llm&offset=5")
+        client = FakeResearchClient(result={"total": 0, "offset": 20, "next": None, "papers": []})
+        response = self.make_app(client).test_client().get("/api/research/search?q=llm&offset=20")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(client.calls, [("llm", 5)])
+        self.assertEqual(client.calls, [("llm", 20)])
 
     def test_empty_query_is_rejected_by_real_client(self):
-        app = self.make_app(SemanticScholarClient(api_key="", opener=opener_returning({})))
+        app = self.make_app(OpenAlexClient(api_key="", opener=opener_returning({})))
         response = app.test_client().get("/api/research/search?q=%20")
         self.assertEqual(response.status_code, 400)
 
@@ -123,7 +141,7 @@ class ResearchRouteTests(unittest.TestCase):
         def opener(request, timeout):
             raise HTTPError(request.full_url, 429, "Too Many Requests", {}, None)
 
-        app = self.make_app(SemanticScholarClient(api_key="", opener=opener))
+        app = self.make_app(OpenAlexClient(api_key="", opener=opener))
         response = app.test_client().get("/api/research/search?q=llm")
         self.assertEqual(response.status_code, 429)
         self.assertIn("rate limiting", response.get_json()["error"])

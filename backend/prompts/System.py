@@ -112,7 +112,9 @@ class SystemPrompts:
             '"suggestion": "<replacement text for the quote, or null>", '
             '"reference_ids": [<ids>]}]}\n'
             "The quote must be copied character for character from the draft and be as short as "
-            "possible while still unique (a word for spelling, a clause or sentence for claims). "
+            "possible (only the misspelled word for spelling, a clause or sentence for claims). "
+            "The suggestion replaces the whole quote, so it must be the complete corrected text "
+            '(quote "knwon" -> suggestion "known"; quote "the datas is" -> suggestion "the data are"). '
             'If there are no problems, respond with {"issues": []}.'
         )
         return "\n\n".join(sections)

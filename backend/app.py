@@ -36,7 +36,7 @@ from backend.services import (
     ChatService,
     ConversationService,
     ProofreadService,
-    SemanticScholarClient,
+    OpenAlexClient,
     ToolCallService,
 )
 
@@ -63,7 +63,7 @@ app.extensions["chat_service"] = ChatService(
     tool_call_service=ToolCallService(),
 )
 app.extensions["proofread_service"] = ProofreadService(app.extensions["chat_service"])
-app.extensions["research_client"] = SemanticScholarClient()
+app.extensions["research_client"] = OpenAlexClient()
 
 # ===== BLUEPRINTS =====
 app.register_blueprint(provider_connections_bp)
