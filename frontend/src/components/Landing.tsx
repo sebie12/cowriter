@@ -50,7 +50,7 @@ export function Landing({
 
       <div className="landing-hero">
         <AsciiQuill className="hero-quill" />
-        <h1 className="hero-headline">How can I help with your writing?</h1>
+        <h1 className="landing-wordmark">Cowriter</h1>
       </div>
 
       <section className="landing-menu" aria-labelledby="landing-menu-title">
