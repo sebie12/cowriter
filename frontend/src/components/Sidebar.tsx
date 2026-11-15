@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import cowriterPet from "../assets/icons/cowriter_pet.svg";
 import type { Project } from "../types";
 import { BackIcon, NewChatIcon, PanelIcon, SearchIcon, SettingsIcon } from "./ui/Icons";
+import { QuillMark } from "./ui/QuillMark";
 
 interface SidebarProps {
   collapsed: boolean;
@@ -57,11 +57,11 @@ export function Sidebar({
       <div className="sidebar-logo-row">
         {collapsed ? (
           <button className="rail-brand" type="button" onClick={onNewProject} aria-label="New project">
-            <img src={cowriterPet} alt="" />
+            <QuillMark />
           </button>
         ) : (
           <button className="sidebar-brand" type="button" onClick={onNewProject} aria-label="New project">
-            <span className="brand-mark"><img src={cowriterPet} alt="" /></span>
+            <span className="brand-mark"><QuillMark /></span>
             <span className="brand-name">Cowriter</span>
           </button>
         )}
