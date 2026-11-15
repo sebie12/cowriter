@@ -140,7 +140,6 @@ export function Workspace({
               ))}
             </div>
           </div>
-          <div className="file-tabs" />
         </header>
       )}
       {error && (

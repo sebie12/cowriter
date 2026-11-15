@@ -535,7 +535,6 @@ export default function App({ api }: { api: CowriterApi }) {
         selectedProjectId={selectedProjectId}
         settingsActive={isSettingsOpen}
         activeProject={selectedProject}
-        filesystemService={projectFilesystemService}
         onNewProject={() => {
           setPendingProjectMessage(null);
           setIsSettingsOpen(false);

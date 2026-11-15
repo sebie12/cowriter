@@ -442,79 +442,6 @@ textarea:focus-visible {
   white-space: nowrap;
 }
 
-.active-project-sidebar h3 {
-  margin: 15px 7px 7px;
-  color: var(--ds-text-3);
-  font-size: 10.5px;
-  font-weight: 650;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.project-files-list {
-  min-height: 0;
-  margin: 0;
-  padding: 0;
-  overflow-y: auto;
-  list-style: none;
-  scrollbar-width: thin;
-  scrollbar-color: #393940 transparent;
-}
-
-.project-files-list li {
-  display: flex;
-  height: 30px;
-  align-items: center;
-  gap: 8px;
-  padding: 0 7px;
-  border-radius: 6px;
-  color: #aaaab2;
-  font-size: 12px;
-}
-
-.project-files-list li:hover {
-  background: #1e1e22;
-  color: #d5d5d9;
-}
-
-.project-files-list svg {
-  flex: 0 0 16px;
-  color: #71717a;
-}
-
-.project-files-list span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.project-files-state,
-.project-files-error {
-  margin: 8px 7px;
-  color: var(--ds-text-3);
-  font-size: 11.5px;
-  line-height: 1.45;
-}
-
-.project-files-error p {
-  margin: 0 0 8px;
-  color: #c88989;
-}
-
-.project-files-error button {
-  display: flex;
-  height: 28px;
-  align-items: center;
-  gap: 5px;
-  padding: 0 8px;
-  border: 1px solid #3b3b42;
-  border-radius: 6px;
-  background: #202024;
-  color: #c2c2c8;
-  cursor: pointer;
-  font-size: 11px;
-}
-
 .rail-search {
   margin: 8px auto;
 }
@@ -567,8 +494,8 @@ textarea:focus-visible {
 
 .workspace-header {
   display: flex;
-  height: 80px;
-  flex: 0 0 80px;
+  height: 48px;
+  flex: 0 0 48px;
   flex-direction: column;
   border-bottom: 1px solid var(--ds-border-soft);
 }
@@ -2372,7 +2299,6 @@ textarea:focus-visible {
   }
 
   .new-project-button,
-  .project-files-error button,
   .composer,
   .model-selector-menu,
   .project-modal,
@@ -2416,7 +2342,6 @@ textarea:focus-visible {
   }
 
   .project-item:hover,
-  .project-files-list li:hover,
   .settings-sidebar button:hover,
   .model-menu-cell:hover,
   .model-menu-option:hover,
@@ -2426,7 +2351,6 @@ textarea:focus-visible {
   }
 
   .project-item:hover,
-  .project-files-list li:hover,
   .settings-sidebar button:hover,
   .model-selector-trigger:hover,
   .model-menu-cell:hover,
@@ -2476,9 +2400,7 @@ textarea:focus-visible {
   }
 
   .project-item,
-  .project-files-list li,
   .new-project-button,
-  .project-files-error button,
   .settings-sidebar button,
   .settings-close-button,
   .project-directory-field > button,

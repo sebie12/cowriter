@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import cowriterPet from "../assets/icons/cowriter_pet.svg";
-import type { ProjectFilesystemService } from "../services/projectFilesystem";
 import type { Project } from "../types";
-import { ProjectFilesView } from "./projects/ProjectFilesView";
 import { BackIcon, NewChatIcon, PanelIcon, SearchIcon, SettingsIcon } from "./ui/Icons";
 
 interface SidebarProps {
@@ -12,7 +10,6 @@ interface SidebarProps {
   projectsError: string | null;
   selectedProjectId: string | null;
   activeProject: Project | null;
-  filesystemService: ProjectFilesystemService;
   settingsActive: boolean;
   onNewProject: () => void;
   onSelectProject: (projectId: string) => void;
@@ -37,7 +34,6 @@ export function Sidebar({
   projectsError,
   selectedProjectId,
   activeProject,
-  filesystemService,
   settingsActive,
   onNewProject,
   onSelectProject,
@@ -110,8 +106,6 @@ export function Sidebar({
               <h2 title={activeProject.title}>{activeProject.title}</h2>
               {activeProject.path && <p title={activeProject.path}>{activeProject.path}</p>}
             </div>
-            <h3>Files</h3>
-            <ProjectFilesView project={activeProject} filesystemService={filesystemService} />
           </div>
         ) : (
           <>
