@@ -153,6 +153,56 @@ textarea:focus-visible {
   background: var(--ds-bg);
 }
 
+/* Custom title bar: the native one is off (decorations: false), so the window
+   controls sit in the top-right corner over the 48px header row. */
+.window-controls {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 200;
+  display: flex;
+  height: 48px;
+  align-items: center;
+  gap: 2px;
+  padding: 0 8px;
+}
+
+.window-control {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ds-text-2);
+  cursor: pointer;
+}
+
+.window-control:hover {
+  background: var(--ds-hover);
+  color: var(--ds-text);
+}
+
+.window-control.close:hover {
+  background: #c4473f;
+  color: #fff;
+}
+
+.window-control:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: -2px;
+}
+
+/* The landing has no header, so an invisible strip along the top moves the window. */
+.window-drag-strip {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 40px;
+}
+
 /* Ported from Harness ui-sidebar: fixed full sidebar and compact 56px rail. */
 .sidebar {
   position: relative;
@@ -577,7 +627,7 @@ textarea:focus-visible {
   justify-content: space-between;
   height: 47px;
   align-items: center;
-  padding: 0 22px;
+  padding: 0 132px 0 22px;
 }
 
 .workspace-title-row h1 {
