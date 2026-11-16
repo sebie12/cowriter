@@ -8,6 +8,7 @@ import type {
   SupportedProvider,
 } from "../../types/providers";
 import type {
+  ConversationItem,
   DraftDocument,
   Message,
   Paper,
@@ -118,6 +119,10 @@ function normalizeProjectMessage(value: unknown): Message | null {
   };
 }
 
+function conversationItemTime(item: ConversationItem): string {
+  return item.kind === "message" ? item.createdAt : item.calledAt;
+}
+
 function normalizeProject(value: unknown): Project {
   if (!isRecord(value)) {
     throw new Error("Backend returned an invalid project.");
@@ -135,13 +140,20 @@ function normalizeProject(value: unknown): Project {
     throw new Error("Backend returned an invalid project.");
   }
 
-  const messages = project.conversations.flatMap((conversation) => {
+  const conversationItems = project.conversations.flatMap((conversation) => {
     if (!isRecord(conversation) || !Array.isArray(conversation.messages)) {
       throw new Error("Backend returned an invalid project conversation.");
     }
-    return conversation.messages
+    const messages = conversation.messages
       .map(normalizeProjectMessage)
       .filter((message): message is Message => message !== null);
+    const toolCalls = Array.isArray(conversation.tool_calls)
+      ? conversation.tool_calls.map(normalizeToolCall)
+      : [];
+    // Saved timestamps are naive UTC ISO strings, so they sort correctly as text.
+    return [...messages, ...toolCalls].sort((left, right) => (
+      conversationItemTime(left).localeCompare(conversationItemTime(right))
+    ));
   });
 
   return {
@@ -152,7 +164,7 @@ function normalizeProject(value: unknown): Project {
     draft: isRecord(project.draft) && project.draft.type === "doc" ? project.draft as DraftDocument : null,
     createdAt: project.created_at,
     updatedAt: project.updated_at,
-    conversationItems: messages,
+    conversationItems,
   };
 }
 
@@ -407,6 +419,13 @@ export const cowriterApi: CowriterApi = {
       },
     );
     return normalizeReference(reference);
+  },
+
+  async deleteChat(projectId, signal) {
+    await request(`/api/projects/${encodeURIComponent(projectId)}/conversation`, {
+      method: "DELETE",
+      signal,
+    });
   },
 
   async deleteReference(projectId, referenceId, signal) {

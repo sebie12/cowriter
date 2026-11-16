@@ -27,6 +27,7 @@ interface WorkspaceProps {
   onSelectModel: (modelId: string) => void;
   onSendMessage: (message: string) => void;
   onStopMessage: () => void;
+  onDeleteChat: (projectId: string) => Promise<void>;
   onDraftChange: (projectId: string, draft: DraftDocument) => void;
   onOpenSettings: () => void;
 }
@@ -49,6 +50,7 @@ export function Workspace({
   onSelectModel,
   onSendMessage,
   onStopMessage,
+  onDeleteChat,
   onDraftChange,
   onOpenSettings,
 }: WorkspaceProps) {
@@ -108,6 +110,8 @@ export function Workspace({
             project={project}
             isActive={activeView === "chat"}
             isThinking={isThinking}
+            canDeleteChat={!isSending}
+            onDeleteChat={() => onDeleteChat(project.id)}
             composer={composer}
           />
       </>

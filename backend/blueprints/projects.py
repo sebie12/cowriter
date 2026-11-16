@@ -3,6 +3,7 @@ from sqlalchemy.exc import IntegrityError
 
 from backend.llm import LLMError
 from backend.database import Conversation, Message, Project, Reference, db
+from backend.services.chat_history import ChatHistoryService
 from backend.services.project_service import ProjectService
 from backend.services.project_settings import parse_settings, parse_title, render_description
 
@@ -124,6 +125,15 @@ def open_project(project_id):
         return jsonify({"error": "Project not found."}), 404
 
     return jsonify(project.to_dict()), 200
+
+
+@projects_bp.delete("/<int:project_id>/conversation")
+def delete_conversation(project_id):
+    project = ProjectService().get_project_by_id(project_id)
+    if not project:
+        return jsonify({"error": "Project not found."}), 404
+    ChatHistoryService().clear(project_id)
+    return ("", 204)
 
 
 MAX_DRAFT_BYTES = 2_000_000
