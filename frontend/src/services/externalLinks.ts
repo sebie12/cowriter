@@ -3,7 +3,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 export async function openExternalUrl(url: string): Promise<void> {
   const parsedUrl = new URL(url);
   if (parsedUrl.protocol !== "https:") {
-    throw new Error("Authorization URL must use HTTPS.");
+    throw new Error("Only HTTPS links can be opened.");
   }
 
   if ("__TAURI_INTERNALS__" in window) {
