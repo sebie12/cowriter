@@ -1,4 +1,5 @@
 import asyncio
+import json
 import unittest
 from types import SimpleNamespace
 
@@ -527,6 +528,55 @@ class ChatServiceTests(unittest.TestCase):
 
         self.assertEqual(self.provider.complete_chat_calls, [])
         self.assertEqual(chunks[1]["content"], "streamed ")
+
+
+    def test_tool_loop_rebuilds_history_with_earlier_tool_calls(self):
+        timeline = [
+            {"kind": "message", "role": "user", "content": "What is the essay about?"},
+            {"kind": "message", "role": "assistant", "content": "Let me check."},
+            {"kind": "tool_call", "id": 4, "tool_name": "read_file", "input_data": {"path": "main.tex"},
+             "status": "completed", "output_data": {"content": "x" * 3000}, "error": None},
+            {"kind": "tool_call", "id": 5, "tool_name": "read_file", "input_data": {"path": "a.tex"},
+             "status": "failed", "output_data": None, "error": "File not found."},
+            {"kind": "message", "role": "assistant", "content": "It is about batteries."},
+        ]
+        self.provider.turns = [ModelTurn("Answer.")]
+        service = self.make_local_tool_service(FakeToolCallService(), lambda *_: {})
+        service.history_loader = lambda project_id: timeline if project_id == 3 else []
+        request = ChatRequest(
+            7, "openai", "gpt-test", "And the title?", project_id=3,
+            history=({"role": "user", "content": "ignored client history"},),
+        )
+
+        list(service.stream_chat(request))
+
+        messages = self.provider.complete_chat_calls[0][2]
+        self.assertEqual([message["role"] for message in messages], [
+            "user", "assistant", "tool", "assistant", "tool", "assistant", "user",
+        ])
+        self.assertIn("Let me check.", messages[1]["content"])
+        self.assertEqual(messages[1]["tool_calls"][0]["function"]["name"], "read_file")
+        self.assertEqual(messages[2]["tool_call_id"], messages[1]["tool_calls"][0]["id"])
+        self.assertIn("call the tool again", messages[2]["content"])
+        self.assertLess(len(messages[2]["content"]), 1350)
+        self.assertIsNone(messages[3]["content"])
+        self.assertEqual(messages[4]["content"], "Tool error: File not found.")
+        self.assertIn("And the title?", messages[-1]["content"])
+        self.assertNotIn("ignored client history", json.dumps(messages))
+
+    def test_history_drops_the_oldest_turns_beyond_the_budget(self):
+        timeline = [
+            {"kind": "message", "role": role, "content": f"{role} {index} " + "y" * 200}
+            for index in range(10)
+            for role in ("user", "assistant")
+        ]
+
+        messages = ChatService.history_messages(timeline, 2000)
+
+        self.assertLess(len(json.dumps(messages)), 2000)
+        self.assertEqual(messages[0]["role"], "user")
+        self.assertIn("user 9", messages[-2]["content"])
+        self.assertNotIn("user 0 ", json.dumps(messages))
 
 
 if __name__ == "__main__":

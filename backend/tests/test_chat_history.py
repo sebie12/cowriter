@@ -57,6 +57,25 @@ class ChatHistoryTests(unittest.TestCase):
         )
         self.assertEqual(conversation_data["tool_calls"][0]["tool_name"], "update_project_settings")
 
+    def test_timeline_interleaves_messages_and_tool_calls_by_time(self):
+        self.history.add_message(self.project.id, "user", "Rename it", datetime(2026, 11, 16, 14, 0, 0))
+        self.history.add_message(self.project.id, "assistant", "Done.", datetime(2026, 11, 16, 14, 0, 2))
+        conversation = Conversation.query.filter_by(project_id=self.project.id).one()
+        db.session.add(ToolCall(
+            conversation_id=conversation.id, tool_name="update_project_settings", input_data={},
+            status="completed", created_at=datetime(2026, 11, 16, 14, 0, 1),
+        ))
+        db.session.commit()
+        self.history.add_message(self.other.id, "user", "Other project")
+
+        timeline = self.history.timeline(self.project.id)
+
+        self.assertEqual(
+            [(item["kind"], item.get("content") or item.get("tool_name")) for item in timeline],
+            [("message", "Rename it"), ("tool_call", "update_project_settings"), ("message", "Done.")],
+        )
+        self.assertEqual(self.history.timeline(999), [])
+
     def test_delete_route_clears_only_that_projects_chat(self):
         self.history.add_message(self.project.id, "user", "Hello")
         self.history.add_message(self.other.id, "user", "Keep me")

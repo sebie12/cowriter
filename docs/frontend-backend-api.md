@@ -52,7 +52,7 @@ Request:
 }
 ```
 
-`project_id`, `title`, and `description` are optional. When `project_id` is set, the backend saves the chat to the project's conversation: the user message once the response starts, and each assistant segment when it ends (or, if the response errors or is stopped, whatever text it had so far). Requests rejected before streaming save nothing. When `system_prompt` is omitted, the backend builds a default chat prompt from `title` and `description`.
+`project_id`, `title`, and `description` are optional. When `project_id` is set, the backend saves the chat to the project's conversation: the user message once the response starts, and each assistant segment when it ends (or, if the response errors or is stopped, whatever text it had so far). Requests rejected before streaming save nothing. In the tool loop (every request with a `project_id`), the backend ignores the client's `history` and rebuilds earlier turns from the saved conversation instead, including earlier tool calls with their results shortened to 1,200 characters; the oldest turns are dropped once the history passes half of the model's context window. When `system_prompt` is omitted, the backend builds a default chat prompt from `title` and `description`.
 
 Response: `application/x-ndjson`. Each event is one JSON object followed by a newline. Assistant text arrives as keyed message segments; one response may contain several segments when tools are used.
 

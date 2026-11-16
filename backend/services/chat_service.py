@@ -13,6 +13,7 @@ from backend.auth.connections import normalize_identifier
 from backend.auth.credentials import CredentialStore
 from backend.llm.contracts import (
     ChatRequest,
+    format_chat_message,
     ChatResult,
     LLMError,
     LLMProvider,
@@ -31,6 +32,10 @@ CHARS_PER_TOKEN = 4
 DEFAULT_CONTEXT_WINDOW = 4096
 RESPONSE_RESERVE_TOKENS = 1024
 MIN_READ_CHARS = 500
+# Earlier tool results are shortened in the history; the model can call the tool again.
+HISTORY_TOOL_RESULT_CHARS = 1200
+# Share of the context window the saved conversation may fill; the oldest turns go first.
+HISTORY_CONTEXT_SHARE = 0.5
 CONTEXT_FULL_MESSAGE = (
     "Tool error: the model's context is full, so no more file text can be read. "
     "Answer with the information you already have."
@@ -60,6 +65,7 @@ class ChatService:
         conversation_resolver: Callable[[int], Any] | None = None,
         tool_call_service: Any | None = None,
         local_tools: Sequence[LocalTool] = (),
+        history_loader: Callable[[int], list[dict[str, Any]]] | None = None,
     ):
         self.connection_lookup = connection_lookup
         self.credential_store = credential_store or CredentialStore()
@@ -69,6 +75,7 @@ class ChatService:
         self.conversation_resolver = conversation_resolver
         self.tool_call_service = tool_call_service
         self.local_tools = tuple(local_tools)
+        self.history_loader = history_loader
 
     def chat(self, request: ChatRequest) -> ChatResult:
         provider, config = self.resolve_provider(
@@ -145,9 +152,19 @@ class ChatService:
             messages: list[dict[str, Any]] = []
             if request.system_prompt:
                 messages.append({"role": "system", "content": request.system_prompt})
-            messages.extend(request.model_messages())
-            conversation_id = None
             context_window = self.context_window(provider, config, request.model)
+            if self.history_loader is not None and request.project_id is not None:
+                # The saved chat includes earlier tool calls, which the client's text-only
+                # history leaves out; without them small models stop calling tools and
+                # answer from memory. Loaded before the current message is saved.
+                messages.extend(self.history_messages(
+                    self.history_loader(request.project_id),
+                    int(context_window * CHARS_PER_TOKEN * HISTORY_CONTEXT_SHARE),
+                ))
+                messages.append(request.model_messages()[-1])
+            else:
+                messages.extend(request.model_messages())
+            conversation_id = None
 
             for _ in range(MAX_TOOL_ROUNDS):
                 turn = provider.complete_chat(request, config, messages, tools)
@@ -260,6 +277,77 @@ class ChatService:
                     )
 
         raise LLMError("Maximum tool-call rounds exceeded.", 502)
+
+    @staticmethod
+    def history_messages(timeline: list[dict[str, Any]], max_chars: int) -> list[dict[str, Any]]:
+        """Turn the saved chat into model messages, tool calls included, newest turns kept."""
+        turns: list[list[dict[str, Any]]] = []
+        for item in timeline:
+            if item.get("kind") == "message":
+                role = item.get("role")
+                content = item.get("content") or ""
+                if role == "user":
+                    turns.append([{"role": "user", "content": format_chat_message("user", content)}])
+                elif role == "assistant" and content.strip():
+                    if not turns:
+                        turns.append([])
+                    turns[-1].append({
+                        "role": "assistant",
+                        "content": format_chat_message("assistant", content),
+                    })
+                continue
+            if item.get("kind") != "tool_call":
+                continue
+            if not turns:
+                turns.append([])
+            turn = turns[-1]
+            call_id = f"history-{item.get('id')}"
+            call = {
+                "id": call_id,
+                "type": "function",
+                "function": {
+                    "name": item.get("tool_name"),
+                    "arguments": json.dumps(item.get("input_data") or {}),
+                },
+            }
+            last = turn[-1] if turn else None
+            if last is not None and last["role"] == "assistant" and "tool_calls" not in last:
+                last["tool_calls"] = [call]
+            else:
+                turn.append({"role": "assistant", "content": None, "tool_calls": [call]})
+            turn.append({
+                "role": "tool",
+                "tool_call_id": call_id,
+                "tool_name": item.get("tool_name"),
+                "content": ChatService._history_tool_result(item),
+            })
+
+        kept: list[list[dict[str, Any]]] = []
+        used = 0
+        for turn in reversed(turns):
+            size = len(json.dumps(turn, ensure_ascii=False))
+            if kept and used + size > max_chars:
+                break
+            if not kept and size > max_chars:
+                break
+            kept.append(turn)
+            used += size
+        return [message for turn in reversed(kept) for message in turn]
+
+    @staticmethod
+    def _history_tool_result(item: dict[str, Any]) -> str:
+        status = item.get("status")
+        if status == "failed":
+            return f"Tool error: {item.get('error') or 'the tool failed.'}"
+        if status != "completed":
+            return "Tool error: this call did not finish."
+        content = json.dumps(item.get("output_data"), ensure_ascii=False)
+        if len(content) > HISTORY_TOOL_RESULT_CHARS:
+            content = (
+                content[:HISTORY_TOOL_RESULT_CHARS]
+                + " … [shortened in the chat history; call the tool again for the full result]"
+            )
+        return content
 
     @staticmethod
     def tool_definitions(mcp_tools: Any) -> tuple[ToolDefinition, ...]:
