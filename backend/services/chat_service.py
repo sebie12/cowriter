@@ -1,7 +1,9 @@
 import asyncio
 import json
 import sys
-from collections.abc import AsyncIterator, Callable, Iterator
+from collections.abc import AsyncIterator, Callable, Iterator, Sequence
+from contextlib import AsyncExitStack
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -35,6 +37,18 @@ CONTEXT_FULL_MESSAGE = (
 )
 
 
+@dataclass(frozen=True)
+class LocalTool:
+    """A tool the backend runs in-process (with DB access) instead of through MCP.
+
+    `run(project_id, arguments)` returns the result data; raising ValueError reports a
+    tool error back to the model instead of failing the chat.
+    """
+
+    definition: ToolDefinition
+    run: Callable[[int, dict[str, Any]], dict[str, Any]]
+
+
 class ChatService:
     def __init__(
         self,
@@ -45,6 +59,7 @@ class ChatService:
         mcp_client_factory: Callable[[str], MCPClient] | None = None,
         conversation_resolver: Callable[[int], Any] | None = None,
         tool_call_service: Any | None = None,
+        local_tools: Sequence[LocalTool] = (),
     ):
         self.connection_lookup = connection_lookup
         self.credential_store = credential_store or CredentialStore()
@@ -53,6 +68,7 @@ class ChatService:
         self.mcp_client_factory = mcp_client_factory or self._default_mcp_client
         self.conversation_resolver = conversation_resolver
         self.tool_call_service = tool_call_service
+        self.local_tools = tuple(local_tools)
 
     def chat(self, request: ChatRequest) -> ChatResult:
         provider, config = self.resolve_provider(
@@ -67,7 +83,8 @@ class ChatService:
             requested_provider=request.provider,
         )
         project_path = self._project_path(request.project_id)
-        if project_path is None:
+        has_local_tools = bool(self.local_tools) and request.project_id is not None
+        if project_path is None and not has_local_tools:
             return self._stream_provider(request, provider, config)
 
         return self._iterate_async_events(
@@ -106,10 +123,20 @@ class ChatService:
         request: ChatRequest,
         provider: LLMProvider,
         config: ProviderConfig,
-        project_path: str,
+        project_path: str | None,
     ) -> AsyncIterator[dict[str, Any]]:
-        async with self.mcp_client_factory(project_path) as client:
-            tools = self.tool_definitions(await client.list_tools())
+        async with AsyncExitStack() as stack:
+            client = None
+            tools: tuple[ToolDefinition, ...] = ()
+            if project_path is not None:
+                client = await stack.enter_async_context(self.mcp_client_factory(project_path))
+                tools = self.tool_definitions(await client.list_tools())
+            local_tools = (
+                {tool.definition.name: tool for tool in self.local_tools}
+                if request.project_id is not None
+                else {}
+            )
+            tools += tuple(tool.definition for tool in local_tools.values())
             if not tools:
                 for event in self._stream_provider(request, provider, config):
                     yield event
@@ -178,6 +205,34 @@ class ChatService:
                         if failed_record is not None:
                             yield self._tool_call_event(failed_record)
                         messages.append(self._tool_message(call, CONTEXT_FULL_MESSAGE))
+                        continue
+
+                    local_tool = local_tools.get(call.name)
+                    if local_tool is not None or client is None:
+                        try:
+                            output, is_error = self._run_local_tool(
+                                local_tool, call.name, request.project_id, arguments
+                            )
+                        except Exception as error:
+                            failed_record = self.tool_call_service.fail_tool_call(record.id, error)
+                            if failed_record is not None:
+                                yield self._tool_call_event(failed_record)
+                            raise
+                        completed_record = self.tool_call_service.complete_tool_call(
+                            record.id,
+                            output_data=output,
+                            is_error=is_error,
+                            error=output["error"] if is_error else None,
+                        )
+                        if completed_record is None:
+                            raise LLMError("Could not update the tool call.", 500)
+                        yield self._tool_call_event(completed_record)
+                        messages.append(self._tool_message(
+                            call,
+                            f"Tool error: {output['error']}"
+                            if is_error
+                            else json.dumps(output, ensure_ascii=True),
+                        ))
                         continue
 
                     try:
@@ -257,6 +312,21 @@ class ChatService:
         if max_chars < MIN_READ_CHARS:
             return None
         return {**call.arguments, "max_chars": max_chars}
+
+    @staticmethod
+    def _run_local_tool(
+        tool: LocalTool | None,
+        name: str,
+        project_id: int,
+        arguments: dict[str, Any],
+    ) -> tuple[dict[str, Any], bool]:
+        """Return (output, is_error); rejected arguments become a tool error for the model."""
+        if tool is None:
+            return {"error": f"Unknown tool: {name}."}, True
+        try:
+            return tool.run(project_id, arguments), False
+        except ValueError as error:
+            return {"error": str(error)}, True
 
     @staticmethod
     def _tool_message(call: ToolCall, content: str) -> dict[str, Any]:

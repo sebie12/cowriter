@@ -69,6 +69,14 @@ class ProjectRouteTests(unittest.TestCase):
             "Write an argumentative essay.\n"
             "Also: cite recent sources",
         )
+        self.assertEqual(payload["settings"], {
+            "tone": "Academic",
+            "writing_style": "Formal",
+            "academic_level": "Graduate",
+            "language": "English",
+            "essay_type": "Argumentative",
+            "additional_instructions": "cite recent sources",
+        })
         self.assertEqual(payload["path"], "/tmp/research-project")
         self.assertEqual(len(payload["conversations"]), 2)
         self.assertEqual(

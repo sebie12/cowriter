@@ -310,6 +310,25 @@ export default function App({ api }: { api: CowriterApi }) {
       : project));
   };
 
+  /** Mirror a successful chat-made settings change so the next message uses it. */
+  const applyProjectSettingsChange = (projectId: string, toolCall: ToolCall) => {
+    if (toolCall.toolName !== "update_project_settings" || toolCall.status !== "completed") {
+      return;
+    }
+    const output = toolCall.output;
+    if (typeof output !== "object" || output === null) {
+      return;
+    }
+    const { name, description } = output as { name?: unknown; description?: unknown };
+    setProjects((currentProjects) => currentProjects.map((project) => project.id === projectId
+      ? {
+          ...project,
+          title: typeof name === "string" ? name : project.title,
+          writingContext: typeof description === "string" ? description : project.writingContext,
+        }
+      : project));
+  };
+
   const upsertProjectToolCall = (projectId: string, toolCall: ToolCall) => {
     const timestamp = new Date().toISOString();
     setProjects((currentProjects) => currentProjects.map((project) => {
@@ -389,6 +408,7 @@ export default function App({ api }: { api: CowriterApi }) {
             updateProjectMessageStatus(activeProject.id, event.messageId, "complete");
           } else if (event.type === "tool_call") {
             upsertProjectToolCall(activeProject.id, event.toolCall);
+            applyProjectSettingsChange(activeProject.id, event.toolCall);
           } else if (event.type === "done") {
             for (const messageId of streamingMessageIds) {
               updateProjectMessageStatus(activeProject.id, messageId, "complete");

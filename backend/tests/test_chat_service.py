@@ -3,7 +3,9 @@ import unittest
 from types import SimpleNamespace
 
 from backend.llm import ChatRequest, ChatResult, LLMError, ModelTurn, ToolCall
+from backend.llm.contracts import ToolDefinition
 from backend.services import ChatService
+from backend.services.chat_service import LocalTool
 
 
 class FakeCredentialStore:
@@ -441,6 +443,90 @@ class ChatServiceTests(unittest.TestCase):
 
     def test_unknown_context_window_uses_default(self):
         self.assertEqual(ChatService.context_window(object(), None, "m"), 4096)
+
+
+    def make_local_tool_service(self, tool_call_service, run):
+        local_tool = LocalTool(
+            definition=ToolDefinition("update_project_settings", "Change settings.", {"type": "object"}),
+            run=run,
+        )
+        return ChatService(
+            connection_lookup=lambda _connection_id: self.connection,
+            credential_store=self.credentials,
+            providers=[self.provider],
+            project_lookup=lambda _project_id: SimpleNamespace(path=None),
+            mcp_client_factory=lambda _project_path: self.fail("MCP must not start without a path."),
+            conversation_resolver=lambda _project_id: SimpleNamespace(id=12),
+            tool_call_service=tool_call_service,
+            local_tools=[local_tool],
+        )
+
+    def test_runs_local_tools_in_process_without_a_project_path(self):
+        tool_call_service = FakeToolCallService()
+        runs = []
+
+        def run(project_id, arguments):
+            runs.append((project_id, arguments))
+            return {"name": "Fixed title"}
+
+        self.provider.turns = [
+            ModelTurn("", (ToolCall("call-1", "update_project_settings", {"title": "Fixed title"}),)),
+            ModelTurn("Renamed."),
+        ]
+        service = self.make_local_tool_service(tool_call_service, run)
+
+        chunks = list(service.stream_chat(
+            ChatRequest(7, "openai", "gpt-test", "Fix the title", project_id=3)
+        ))
+
+        self.assertEqual(runs, [(3, {"title": "Fixed title"})])
+        self.assertEqual(
+            [event["tool_call"]["status"] for event in chunks if event["type"] == "tool_call"],
+            ["pending", "running", "completed"],
+        )
+        self.assertEqual(
+            [tool.name for tool in self.provider.complete_chat_calls[0][3]],
+            ["update_project_settings"],
+        )
+        self.assertEqual(
+            self.provider.complete_chat_calls[1][2][-1]["content"],
+            '{"name": "Fixed title"}',
+        )
+
+    def test_rejected_local_tool_arguments_become_a_tool_error(self):
+        tool_call_service = FakeToolCallService()
+
+        def run(_project_id, _arguments):
+            raise ValueError("tone is invalid.")
+
+        self.provider.turns = [
+            ModelTurn("", (ToolCall("call-1", "update_project_settings", {"tone": "Loud"}),)),
+            ModelTurn("That tone isn't available."),
+        ]
+        service = self.make_local_tool_service(tool_call_service, run)
+
+        chunks = list(service.stream_chat(
+            ChatRequest(7, "openai", "gpt-test", "Make it loud", project_id=3)
+        ))
+
+        self.assertEqual(chunks[-1]["type"], "assistant_end")
+        self.assertEqual(tool_call_service.completed, [(1, {
+            "output_data": {"error": "tone is invalid."},
+            "is_error": True,
+            "error": "tone is invalid.",
+        })])
+        self.assertEqual(
+            self.provider.complete_chat_calls[1][2][-1]["content"],
+            "Tool error: tone is invalid.",
+        )
+
+    def test_local_tools_need_a_project(self):
+        service = self.make_local_tool_service(FakeToolCallService(), lambda *_: {})
+
+        chunks = list(service.stream_chat(ChatRequest(7, "openai", "gpt-test", "Hello")))
+
+        self.assertEqual(self.provider.complete_chat_calls, [])
+        self.assertEqual(chunks[1]["content"], "streamed ")
 
 
 if __name__ == "__main__":
