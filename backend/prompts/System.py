@@ -49,7 +49,7 @@ class SystemPrompts:
             "with only the fields to change; read files first only if you need the essay's content to choose the new value. "
             "Never say a setting was changed unless update_project_settings returned success. "
             "If you notice on your own that a setting looks wrong, for example a title that doesn't match the essay, "
-            "suggest the correction and only make it after the user agrees.",
+            "suggest the correction and ask the user once if they want to make the change, if they agree call update_project_settings.",
             "When you feel the need to use the tools you dont need to answer the user, use the tools directly and provide the user with the information you found. Do not ask the user to use the tools themselves.",
         ]
 
