@@ -1,9 +1,11 @@
 import json
+from typing import Any
 
 from flask import Blueprint, Response, current_app, jsonify, request, stream_with_context
 
 from backend.llm import ChatRequest, LLMError
 from backend.prompts import SystemPrompts
+from backend.services.chat_history import utc_from_iso
 
 chat_bp = Blueprint("chat", __name__, url_prefix="/api")
 ALLOWED_HISTORY_ROLES = {"user", "assistant"}
@@ -72,13 +74,50 @@ def parse_chat_payload(payload):
     )
 
 
+class AssistantMessageRecorder:
+    """Collects streamed assistant segments and saves each one to the project's chat."""
+
+    def __init__(self, history: Any | None, project_id: int | None):
+        self.history = history if project_id is not None else None
+        self.project_id = project_id
+        self.pending: dict[str, tuple[Any, list[str]]] = {}
+
+    def observe(self, event: dict[str, Any]) -> None:
+        if self.history is None:
+            return
+        event_type = event.get("type")
+        message_id = event.get("id")
+        if event_type == "assistant_start":
+            self.pending[message_id] = (utc_from_iso(event.get("created_at")), [])
+        elif event_type == "assistant_delta" and message_id in self.pending:
+            self.pending[message_id][1].append(event.get("content") or "")
+        elif event_type == "assistant_end":
+            self._save(message_id)
+
+    def flush(self) -> None:
+        """Save segments cut short by an error or a stopped response."""
+        for message_id in list(self.pending):
+            try:
+                self._save(message_id)
+            except Exception:
+                current_app.logger.exception("Could not save a partial assistant message.")
+
+    def _save(self, message_id: str) -> None:
+        created_at, parts = self.pending.pop(message_id, (None, []))
+        content = "".join(parts).strip()
+        if content:
+            self.history.add_message(self.project_id, "assistant", content, created_at)
+
+
 @chat_bp.route("/chat", methods=["POST", "OPTIONS"])
 def chat():
     if request.method == "OPTIONS":
         return ("", 204)
 
+    history = current_app.extensions.get("chat_history")
     try:
         chat_request = parse_chat_payload(request.get_json(silent=True))
+        sent_at = utc_from_iso(None)
         events = iter(current_app.extensions["chat_service"].stream_chat(chat_request))
         first_event = next(events)
     except StopIteration:
@@ -86,15 +125,25 @@ def chat():
     except LLMError as error:
         return jsonify({"error": error.message}), error.status_code
 
+    # Saved only once the chat has started, so a rejected request leaves no history behind.
+    if history is not None and chat_request.project_id is not None:
+        history.add_message(chat_request.project_id, "user", chat_request.message, sent_at)
+    recorder = AssistantMessageRecorder(history, chat_request.project_id)
+
     def generate():
-        yield json.dumps(first_event) + "\n"
         try:
-            for event in events:
-                yield json.dumps(event) + "\n"
-        except LLMError as error:
-            yield json.dumps({"type": "error", "error": error.message}) + "\n"
-            return
-        yield json.dumps({"type": "done"}) + "\n"
+            recorder.observe(first_event)
+            yield json.dumps(first_event) + "\n"
+            try:
+                for event in events:
+                    recorder.observe(event)
+                    yield json.dumps(event) + "\n"
+            except LLMError as error:
+                yield json.dumps({"type": "error", "error": error.message}) + "\n"
+                return
+            yield json.dumps({"type": "done"}) + "\n"
+        finally:
+            recorder.flush()
 
     return Response(
         stream_with_context(generate()),

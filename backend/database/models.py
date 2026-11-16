@@ -196,6 +196,7 @@ class Conversation(db.Model):
             "id": self.id,
             "project_id": self.project_id,
             "messages": [message.to_dict() for message in self.messages],
+            "tool_calls": [tool_call.to_dict() for tool_call in self.tool_calls],
             "created_at": _isoformat(self.created_at),
             "updated_at": _isoformat(self.updated_at),
         }

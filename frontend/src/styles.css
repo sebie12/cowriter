@@ -1592,6 +1592,65 @@ textarea:focus-visible {
   color: var(--ds-danger);
 }
 
+/* Sticky, zero-height bar so the chat actions float without shifting the conversation. */
+.chat-toolbar {
+  position: sticky;
+  z-index: 7;
+  top: 0;
+  display: flex;
+  height: 0;
+  justify-content: flex-end;
+  padding: 0 16px;
+  overflow: visible;
+}
+
+.chat-toolbar > * {
+  margin-top: 10px;
+}
+
+.chat-delete-confirm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px 4px 12px;
+  border: 1px solid var(--ds-border);
+  border-radius: 999px;
+  background: var(--ds-elevated);
+  color: var(--ds-text);
+  font-size: 12.5px;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 30%);
+}
+
+.chat-toolbar-button {
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--ds-border);
+  border-radius: 999px;
+  background: var(--ds-elevated);
+  color: var(--ds-text-3);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.chat-toolbar-button:hover:not(:disabled) {
+  background: var(--ds-hover);
+  color: var(--ds-text);
+}
+
+.chat-toolbar-button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.chat-toolbar-danger {
+  color: var(--ds-danger);
+}
+
+.chat-toolbar-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ds-danger) 10%, transparent);
+  color: var(--ds-danger);
+}
+
 .scroll-to-bottom-slot {
   position: sticky;
   z-index: 7;

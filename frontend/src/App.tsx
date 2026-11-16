@@ -500,6 +500,22 @@ export default function App({ api }: { api: CowriterApi }) {
     });
   };
 
+  const handleDeleteChat = async (projectId: string) => {
+    if (isSendingRef.current) {
+      return;
+    }
+    try {
+      await api.deleteChat(projectId);
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "Could not delete the chat.");
+      return;
+    }
+    setError(null);
+    setProjects((currentProjects) => currentProjects.map((project) => project.id === projectId
+      ? { ...project, conversationItems: [] }
+      : project));
+  };
+
   const handleDraftChange = (projectId: string, draft: DraftDocument) => {
     setProjects((currentProjects) => currentProjects.map((project) => (
       project.id === projectId ? { ...project, draft } : project
@@ -620,6 +636,7 @@ export default function App({ api }: { api: CowriterApi }) {
         }}
         onSendMessage={handleSendMessage}
         onStopMessage={handleStopMessage}
+        onDeleteChat={handleDeleteChat}
         onDraftChange={handleDraftChange}
         onOpenSettings={openSettings}
       />

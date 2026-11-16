@@ -52,7 +52,7 @@ Request:
 }
 ```
 
-`project_id`, `title`, and `description` are optional. When `system_prompt` is omitted, the backend builds a default chat prompt from `title` and `description`.
+`project_id`, `title`, and `description` are optional. When `project_id` is set, the backend saves the chat to the project's conversation: the user message once the response starts, and each assistant segment when it ends (or, if the response errors or is stopped, whatever text it had so far). Requests rejected before streaming save nothing. When `system_prompt` is omitted, the backend builds a default chat prompt from `title` and `description`.
 
 Response: `application/x-ndjson`. Each event is one JSON object followed by a newline. Assistant text arrives as keyed message segments; one response may contain several segments when tools are used.
 
@@ -123,7 +123,7 @@ Response: an array of project objects.
     },
     "path": "/home/user/thesis",
     "conversations": [
-      { "id": 3, "project_id": 12, "messages": [], "created_at": "...", "updated_at": "..." }
+      { "id": 3, "project_id": 12, "messages": [], "tool_calls": [], "created_at": "...", "updated_at": "..." }
     ],
     "created_at": "...",
     "updated_at": "...",
@@ -132,7 +132,15 @@ Response: an array of project objects.
 ]
 ```
 
-`settings` holds the structured writing settings and `description` is the prose prompt rendered from them; both, and `path`, may be `null`. The frontend flattens each project's conversation messages into its conversation view.
+`settings` holds the structured writing settings and `description` is the prose prompt rendered from them; both, and `path`, may be `null`. The frontend merges each conversation's `messages` and `tool_calls` into its chat view, ordered by `created_at`.
+
+### Delete a project's chat
+
+```text
+DELETE /api/projects/:id/conversation
+```
+
+Deletes the project's chat: its conversations, messages, and tool calls. The next chat message starts a new conversation. Response: `204`, or `404` for an unknown project.
 
 ### Create a project
 

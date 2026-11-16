@@ -32,6 +32,8 @@ export interface CowriterApi {
   createProject(input: CreateProjectInput, signal?: AbortSignal): Promise<Project>;
   openProject(projectId: string, signal?: AbortSignal): Promise<void>;
   saveDraft(projectId: string, draft: DraftDocument | null, signal?: AbortSignal): Promise<void>;
+  /** Deletes the project's chat (messages and tool calls); the next message starts a new one. */
+  deleteChat(projectId: string, signal?: AbortSignal): Promise<void>;
   searchPapers(query: string, offset: number, signal?: AbortSignal): Promise<PaperSearchResult>;
   listReferences(projectId: string, signal?: AbortSignal): Promise<Reference[]>;
   saveReference(projectId: string, paper: Paper, signal?: AbortSignal): Promise<Reference>;

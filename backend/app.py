@@ -39,6 +39,7 @@ from backend.services import (
     OpenAlexClient,
     ToolCallService,
 )
+from backend.services.chat_history import ChatHistoryService
 from backend.services.project_settings import update_project_settings_tool
 
 app = Flask(__name__)
@@ -64,6 +65,7 @@ app.extensions["chat_service"] = ChatService(
     tool_call_service=ToolCallService(),
     local_tools=[update_project_settings_tool()],
 )
+app.extensions["chat_history"] = ChatHistoryService()
 app.extensions["proofread_service"] = ProofreadService(app.extensions["chat_service"])
 app.extensions["research_client"] = OpenAlexClient()
 

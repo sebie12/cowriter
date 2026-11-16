@@ -9,15 +9,41 @@ interface ChatTabProps {
   project: Project;
   isActive: boolean;
   isThinking: boolean;
+  canDeleteChat: boolean;
+  onDeleteChat: () => Promise<void>;
   composer: ComposerProps;
 }
 
-export function ChatTab({ project, isActive, isThinking, composer }: ChatTabProps) {
+export function ChatTab({
+  project,
+  isActive,
+  isThinking,
+  canDeleteChat,
+  onDeleteChat,
+  composer,
+}: ChatTabProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const scrollContentRef = useRef<HTMLDivElement | null>(null);
   const isNearBottomRef = useRef(true);
   const [isNearBottom, setIsNearBottom] = useState(true);
   const previousProjectIdRef = useRef<string | null>(null);
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const hasChat = project.conversationItems.length > 0;
+
+  useEffect(() => {
+    setIsConfirmingDelete(false);
+  }, [project.id, isActive]);
+
+  const deleteChat = async () => {
+    setIsDeleting(true);
+    try {
+      await onDeleteChat();
+    } finally {
+      setIsDeleting(false);
+      setIsConfirmingDelete(false);
+    }
+  };
 
   const scrollToBottom = () => {
     const scrollContainer = scrollRef.current;
@@ -72,6 +98,41 @@ export function ChatTab({ project, isActive, isThinking, composer }: ChatTabProp
         setIsNearBottom(isNearBottomRef.current);
       }}
     >
+      {hasChat && (
+        <div className="chat-toolbar">
+          {isConfirmingDelete ? (
+            <div className="chat-delete-confirm" role="group" aria-label="Confirm chat deletion">
+              <span>Delete this chat and its tool history?</span>
+              <button
+                className="chat-toolbar-button"
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setIsConfirmingDelete(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="chat-toolbar-button chat-toolbar-danger"
+                type="button"
+                disabled={isDeleting}
+                onClick={() => void deleteChat()}
+              >
+                {isDeleting ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          ) : (
+            <button
+              className="chat-toolbar-button"
+              type="button"
+              disabled={!canDeleteChat}
+              title={canDeleteChat ? undefined : "Wait for the reply to finish"}
+              onClick={() => setIsConfirmingDelete(true)}
+            >
+              Delete chat
+            </button>
+          )}
+        </div>
+      )}
       <div ref={scrollContentRef} className="workspace-scroll-content">
         <Conversation items={project.conversationItems} isSending={isThinking} />
       </div>
