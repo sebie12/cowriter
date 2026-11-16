@@ -462,7 +462,7 @@ textarea:focus-visible {
 
 .active-project-heading p {
   overflow: hidden;
-  margin: 5px 0 0;
+  margin: 0;
   color: var(--ds-text-3);
   font-size: 10px;
   text-overflow: ellipsis;
