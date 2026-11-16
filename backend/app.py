@@ -64,6 +64,7 @@ app.extensions["chat_service"] = ChatService(
     conversation_resolver=ConversationService().get_or_create_for_project,
     tool_call_service=ToolCallService(),
     local_tools=[update_project_settings_tool()],
+    history_loader=lambda project_id: ChatHistoryService().timeline(project_id),
 )
 app.extensions["chat_history"] = ChatHistoryService()
 app.extensions["proofread_service"] = ProofreadService(app.extensions["chat_service"])

@@ -45,6 +45,26 @@ class ChatHistoryService:
         self._commit()
         return message
 
+    def timeline(self, project_id: int) -> list[dict]:
+        """The project's saved messages and tool calls, oldest first, each tagged with its `kind`."""
+        conversation_ids = [
+            conversation_id
+            for (conversation_id,) in db.session.query(Conversation.id).filter_by(project_id=project_id)
+        ]
+        if not conversation_ids:
+            return []
+        messages = Message.query.filter(Message.conversation_id.in_(conversation_ids)).all()
+        tool_calls = ToolCall.query.filter(ToolCall.conversation_id.in_(conversation_ids)).all()
+        items = [
+            (message.created_at, 0, message.id, {"kind": "message", **message.to_dict()})
+            for message in messages
+        ] + [
+            (tool_call.created_at, 1, tool_call.id, {"kind": "tool_call", **tool_call.to_dict()})
+            for tool_call in tool_calls
+        ]
+        items.sort(key=lambda item: (item[0] or datetime.min, item[1], item[2]))
+        return [item[3] for item in items]
+
     def clear(self, project_id: int) -> None:
         """Delete the project's chat: its conversations, messages, and tool calls."""
         conversation_ids = [
