@@ -10,6 +10,7 @@ import type { CowriterApi } from "./services/backend/types";
 import type { ConversationItem, CreateProjectInput, DraftDocument, Message, Project, ToolCall } from "./types";
 import type { ProviderModel } from "./types/providers";
 import { createId } from "./utils/ids";
+import { useAppZoom } from "./hooks/useAppZoom";
 
 const CHAT_PREFERENCES_KEY = "cowriter.chat-preferences.v1";
 const DRAFT_SAVE_DELAY_MS = 800;
@@ -72,6 +73,7 @@ function titleFromMessage(message: string): string {
 }
 
 export default function App({ api }: { api: CowriterApi }) {
+  useAppZoom();
   const initialChatPreferencesRef = useRef<ChatPreferences | null>(null);
   if (initialChatPreferencesRef.current === null) {
     initialChatPreferencesRef.current = loadChatPreferences();
