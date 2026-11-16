@@ -93,7 +93,6 @@ export function Sidebar({
           </button>
         ) : (
           <button className="sidebar-brand" type="button" onClick={onNewProject} aria-label="New project">
-            <span className="brand-mark"><QuillMark /></span>
             <span className="brand-name">Cowriter</span>
           </button>
         )}
@@ -132,10 +131,11 @@ export function Sidebar({
               <BackIcon size={14} />
               <span>Recent projects</span>
             </button>
-            <div className="active-project-heading">
-              <h2 title={project.title}>{project.title}</h2>
-              {project.path && <p title={displayPath(project.path)}>{displayPath(project.path)}</p>}
-            </div>
+            {project.path && (
+              <div className="active-project-heading">
+                <p title={displayPath(project.path)}>{displayPath(project.path)}</p>
+              </div>
+            )}
             {viewNav}
           </div>
         )}
