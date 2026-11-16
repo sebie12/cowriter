@@ -3,8 +3,8 @@ from sqlalchemy.exc import IntegrityError
 
 from backend.llm import LLMError
 from backend.database import Conversation, Message, Project, Reference, db
-from backend.prompts import SystemPrompts
 from backend.services.project_service import ProjectService
+from backend.services.project_settings import parse_settings, parse_title, render_description
 
 
 projects_bp = Blueprint(
@@ -13,53 +13,14 @@ projects_bp = Blueprint(
     url_prefix="/api/projects",
 )
 ALLOWED_MESSAGE_ROLES = {"system", "user", "assistant"}
-DESCRIPTION_OPTIONS = {
-    "tone": {"Academic", "Neutral", "Persuasive", "Analytical", "Conversational"},
-    "writing_style": {"Formal", "Clear", "Concise", "Descriptive", "Creative"},
-    "academic_level": {"MiddleSchool", "HighSchool", "Undergraduate", "Graduate"},
-    "language": {"Portuguese", "English"},
-    "essay_type": {"Argumentative", "Expository", "Descriptive", "Narrative", "Analytical"},
-}
-MAX_ADDITIONAL_INSTRUCTIONS_LENGTH = 110
 
 
 def parse_project_description(description):
+    """Return (settings, rendered description), or (None, None) when there are none."""
     if description is None:
-        return None
-    if not isinstance(description, dict):
-        raise ValueError("description must be an object or null.")
-
-    values = {}
-    for field_name, allowed_values in DESCRIPTION_OPTIONS.items():
-        value = description.get(field_name)
-        if value not in allowed_values:
-            raise ValueError(f"description.{field_name} is invalid.")
-        values[field_name] = value
-
-    additional_instructions = description.get("additional_instructions")
-    if additional_instructions is not None and not isinstance(additional_instructions, str):
-        raise ValueError("description.additional_instructions must be a string or null.")
-    if isinstance(additional_instructions, str):
-        additional_instructions = additional_instructions.strip() or None
-        if (
-            additional_instructions
-            and len(additional_instructions) > MAX_ADDITIONAL_INSTRUCTIONS_LENGTH
-        ):
-            raise ValueError(
-                f"description.additional_instructions must be {MAX_ADDITIONAL_INSTRUCTIONS_LENGTH} characters or fewer."
-            )
-
-    project_description = SystemPrompts.project_description(
-        tone=values["tone"],
-        writing_style=values["writing_style"],
-        academic_level=values["academic_level"],
-        language=values["language"],
-        essay_type=values["essay_type"],
-        additional_instructions=additional_instructions,
-    )
-    if len(project_description) > 255:
-        raise ValueError("description must be 255 characters or fewer.")
-    return project_description
+        return None, None
+    settings = parse_settings(description)
+    return settings, render_description(settings)
 
 
 def parse_project_payload(payload):
@@ -71,13 +32,8 @@ def parse_project_payload(payload):
     conversation_payloads = payload.get("conversations", [])
     path = payload.get("path")
 
-    if not isinstance(name, str) or not name.strip():
-        raise ValueError("name is required.")
-    name = name.strip()
-    if len(name) > 100:
-        raise ValueError("name must be 100 characters or fewer.")
-
-    description = parse_project_description(description)
+    name = parse_title(name)
+    settings, description = parse_project_description(description)
 
     if path is not None and not isinstance(path, str):
         raise ValueError("path must be a string or null.")
@@ -117,6 +73,7 @@ def parse_project_payload(payload):
     return Project(
         name=name,
         description=description,
+        settings=settings,
         path=path,
         conversations=conversations,
     )

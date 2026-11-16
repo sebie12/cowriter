@@ -93,6 +93,8 @@ class Project(db.Model):
     description = db.Column(db.String(255), nullable=True)
     path = db.Column(db.String(255), nullable=True, unique=True)
     language = db.Column(db.String(10), nullable=True, default="en")
+    # Structured writing settings; `description` is the prose rendered from them.
+    settings = db.Column(db.JSON, nullable=True)
     draft = db.Column(db.JSON, nullable=True)
 
     conversations = db.relationship(
@@ -135,6 +137,7 @@ class Project(db.Model):
             "id": self.id,
             "name": self.name,
             "description": self.description,
+            "settings": self.settings,
             "conversations": [
                 conversation.to_dict() for conversation in self.conversations
             ],

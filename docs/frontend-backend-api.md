@@ -84,7 +84,7 @@ An error before streaming starts is a non-2xx JSON response:
 
 Streaming: required, using NDJSON over the Fetch response body. SSE and WebSocket support are not required.
 
-When the selected project has a filesystem path, the backend starts the bundled MCP server for that project, sends its `read_file` and `list_files` definitions to the model, and runs up to five tool rounds. Each tool call is persisted to the project's conversation and reported through `tool_call` events. In tool-enabled turns, model text is not streamed token by token: each model turn's text is sent as one complete `assistant_start`/`assistant_delta`/`assistant_end` segment. Paths accepted by the MCP tools are relative to the selected project root and cannot escape it. `read_file` returns `.tex` and `.docx` files as plain text (converted with pandoc) and returns long files in pages (`content`, `offset`, `next_offset`, `total_chars`, `truncated`). The backend limits each page to the context the selected model has left, and if no context is left the call is recorded as `failed` without reading the file.
+When the selected project has a filesystem path, the backend starts the bundled MCP server for that project, sends its `read_file` and `list_files` definitions to the model, and runs up to five tool rounds. Each tool call is persisted to the project's conversation and reported through `tool_call` events. In tool-enabled turns, model text is not streamed token by token: each model turn's text is sent as one complete `assistant_start`/`assistant_delta`/`assistant_end` segment. Paths accepted by the MCP tools are relative to the selected project root and cannot escape it. Every request with a `project_id` also gets the in-process `update_project_settings` tool, which changes the project's title and/or writing settings (only the fields it is given) and returns `{ "name", "description", "settings" }`; rejected values come back to the model as a tool error. Because of it, project chats always use the non-streamed tool loop, even without a filesystem path. When this tool call completes, the frontend applies the returned title and description to the open project. `read_file` returns `.tex` and `.docx` files as plain text (converted with pandoc) and returns long files in pages (`content`, `offset`, `next_offset`, `total_chars`, `truncated`). The backend limits each page to the context the selected model has left, and if no context is left the call is recorded as `failed` without reading the file.
 
 Required: yes.
 
@@ -112,7 +112,8 @@ Response: an array of project objects.
   {
     "id": 12,
     "name": "Thesis",
-    "description": {
+    "description": "Use an academic tone.\nUse a formal writing style.\n...",
+    "settings": {
       "tone": "Academic",
       "writing_style": "Formal",
       "academic_level": "Graduate",
@@ -131,7 +132,7 @@ Response: an array of project objects.
 ]
 ```
 
-`description` and `path` may be `null`. The frontend flattens each project's conversation messages into its conversation view.
+`settings` holds the structured writing settings and `description` is the prose prompt rendered from them; both, and `path`, may be `null`. The frontend flattens each project's conversation messages into its conversation view.
 
 ### Create a project
 
@@ -139,7 +140,7 @@ Response: an array of project objects.
 POST /api/projects
 ```
 
-Request: `{ "name": "Thesis", "description": { ... } | null, "path": "/abs/path" | null }`. `description` fields must use the allowed values enforced in `backend/blueprints/projects.py`.
+Request: `{ "name": "Thesis", "description": { ... } | null, "path": "/abs/path" | null }`. `description` fields must use the allowed values in `SETTING_OPTIONS` (`backend/services/project_settings.py`); they are stored as `settings` and rendered into `description`.
 
 Response: `201` with the created project object. `400` on validation errors, `409` if the name or path already exists.
 

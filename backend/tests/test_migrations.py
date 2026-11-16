@@ -30,7 +30,7 @@ class MigrationTests(unittest.TestCase):
             with sqlite3.connect(database) as connection:
                 self.assertEqual(
                     connection.execute("SELECT version_num FROM alembic_version").fetchone()[0],
-                    "52103eca120e",
+                    "7c1149f13887",
                 )
                 self.assertEqual(connection.execute("PRAGMA foreign_key_check").fetchall(), [])
 
