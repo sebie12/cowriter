@@ -118,8 +118,16 @@ export interface ProofreadIssue {
   referenceIds: number[];
 }
 
+export interface ProofreadTopic {
+  /** False when the draft has nothing to do with the essay's topic. */
+  onTopic: boolean;
+  explanation: string;
+}
+
 export interface ProofreadResult {
   issues: ProofreadIssue[];
+  /** The model's verdict on whether the draft fits the essay's topic; null without an essay. */
+  topic: ProofreadTopic | null;
   /** Project-relative path of the essay the draft was compared with, if any. */
   essayFile: string | null;
   essayTruncated: boolean;

@@ -3,7 +3,7 @@ import { EditorContent, useEditor, useEditorState, type JSONContent } from "@tip
 import StarterKit from "@tiptap/starter-kit";
 import type { ReferencesState } from "../../hooks/useReferences";
 import type { CowriterApi } from "../../services/backend/types";
-import type { DraftDocument, Project, ProofreadIssue, ProofreadIssueType } from "../../types";
+import type { DraftDocument, Project, ProofreadIssue, ProofreadIssueType, ProofreadTopic } from "../../types";
 import type { ProviderModel } from "../../types/providers";
 import { ModelSelector, type ProviderOption } from "../composer/ModelSelector";
 import { FeedbackPanel, type ReviewStatus } from "./FeedbackPanel";
@@ -69,6 +69,7 @@ export function WorkTab({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [filter, setFilter] = useState<ProofreadIssueType | null>(null);
   const [essay, setEssay] = useState<{ file: string; truncated: boolean } | null>(null);
+  const [topic, setTopic] = useState<ProofreadTopic | null>(null);
   const reviewControllerRef = useRef<AbortController | null>(null);
   const onIssueClickRef = useRef<(id: string) => void>(() => undefined);
   const projectId = project.id;
@@ -186,6 +187,7 @@ export function WorkTab({
       }, controller.signal);
 
       setEssay(result.essayFile ? { file: result.essayFile, truncated: result.essayTruncated } : null);
+      setTopic(result.topic);
       const highlighted: HighlightedIssue[] = [];
       for (const issue of result.issues) {
         const range = rangeForOffsets(draftText, issue.start, issue.end);
@@ -334,6 +336,7 @@ export function WorkTab({
           references={references.references}
           hasReferences={references.references.length > 0}
           essay={essay}
+          topic={topic}
           hasProjectFolder={Boolean(project.path)}
           onFilterChange={setFilter}
           onHover={(id) => {

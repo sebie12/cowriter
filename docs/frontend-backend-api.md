@@ -228,6 +228,7 @@ Response:
 {
   "essay_file": "main.tex",
   "essay_truncated": false,
+  "topic": { "on_topic": false, "explanation": "The essay is about carbon taxes; the draft is a recipe." },
   "issues": [
     {
       "id": "issue-…",
@@ -243,7 +244,7 @@ Response:
 }
 ```
 
-`essay_file` is the project-relative essay the draft was compared with (`null` when there is no folder or no `.tex` file), and `essay_truncated` says whether it was cut. For Ollama, the request sets `num_ctx` to fit the prompt (about 3 characters per token plus 2,048 tokens for the answer, between 4,096 and 32,768). `suggestion` is replacement text for `quote`, or `null`. `reference_ids` only contains ids of the project's saved references. Errors: `400` for validation, `413` for drafts over 60,000 characters, provider errors with their own status, and `502` when the model's reply is not valid JSON.
+`essay_file` is the project-relative essay the draft was compared with (`null` when there is no folder or no `.tex` file), and `essay_truncated` says whether it was cut. With an essay, the model also judges whether the draft is about the essay's topic at all: `topic.on_topic` is `false` only when the draft has nothing to do with it (a new angle or section of the same subject counts as on topic). The schema then asks for `topic` before `issues`. `topic` is `null` without an essay, or when the model gives no readable verdict (the review doesn't fail over it); the Feedback panel shows an "Off topic" note when it is `false`. For Ollama, the request sets `num_ctx` to fit the prompt (about 3 characters per token plus 2,048 tokens for the answer, between 4,096 and 32,768). `suggestion` is replacement text for `quote`, or `null`. `reference_ids` only contains ids of the project's saved references. Errors: `400` for validation, `413` for drafts over 60,000 characters, provider errors with their own status, and `502` when the model's reply is not valid JSON.
 
 The frontend builds `text` by joining text blocks with a blank line (`"\n\n"`), the same way as ProseMirror `textBetween`, and maps the offsets back to editor positions. The editor is read-only while a review runs.
 
