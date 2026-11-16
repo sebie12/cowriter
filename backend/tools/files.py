@@ -87,7 +87,10 @@ def register_file_tools(mcp):
         """
         _, file_path = _project_path(path)
         if not file_path.is_file():
-            raise ToolError("File not found.")
+            raise ToolError(
+                f"File not found: {path}. Paths are relative to the project root; "
+                "call list_files to see the available files."
+            )
         if max_chars is not None and max_chars < 1:
             raise ToolError("max_chars must be positive.")
 
@@ -106,10 +109,16 @@ def register_file_tools(mcp):
 
     @mcp.tool()
     async def list_files(directory: str = ".") -> dict:
-        """Recursively list files under a project-relative directory."""
+        """Recursively list files under a directory relative to the project root.
+
+        Leave `directory` out (or use ".") to list every file in the project.
+        """
         root, directory_path = _project_path(directory)
         if not directory_path.is_dir():
-            raise ToolError("Directory not found.")
+            raise ToolError(
+                f"Directory not found: {directory}. Paths are relative to the project root; "
+                "call list_files with no arguments to list every file from the root."
+            )
         return {
             "files": sorted(
                 path.relative_to(root).as_posix()
