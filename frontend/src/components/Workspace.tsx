@@ -1,4 +1,5 @@
 import { useReferences } from "../hooks/useReferences";
+import { handleWindowDragMouseDown } from "../services/appWindow";
 import type { CowriterApi } from "../services/backend/types";
 import type { DraftDocument, Project } from "../types";
 import type { ProviderModel } from "../types/providers";
@@ -71,7 +72,7 @@ export function Workspace({
 
   return (
     <main className="workspace" data-phase="active" data-dialog-fallback-focus tabIndex={-1}>
-      <header className="workspace-header">
+      <header className="workspace-header" onMouseDown={handleWindowDragMouseDown}>
         <div className="workspace-title-row">
           <h1>{project.title}</h1>
         </div>

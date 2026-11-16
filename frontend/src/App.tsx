@@ -4,6 +4,7 @@ import { ProjectModal } from "./components/projects/ProjectModal";
 import { SettingsModal } from "./components/settings/SettingsModal";
 import { Sidebar } from "./components/Sidebar";
 import { Workspace } from "./components/Workspace";
+import { WindowControls } from "./components/ui/WindowControls";
 import type { ProjectView } from "./components/projectViews";
 import { useProviders } from "./hooks/useProviders";
 import { projectFilesystemService } from "./services/projectFilesystem";
@@ -538,6 +539,7 @@ export default function App({ api }: { api: CowriterApi }) {
 
   return (
     <div className="app-shell">
+      <WindowControls />
       {selectedProject === null ? (
         <Landing
           projects={projects}

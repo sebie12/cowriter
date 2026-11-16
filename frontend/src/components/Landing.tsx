@@ -3,6 +3,7 @@ import type { Project } from "../types";
 import { NewChatIcon, SearchIcon, SettingsIcon } from "./ui/Icons";
 import { AsciiQuill } from "./ui/AsciiQuill";
 import { displayPath } from "../utils/paths";
+import { handleWindowDragMouseDown } from "../services/appWindow";
 
 interface LandingProps {
   projects: Project[];
@@ -43,6 +44,7 @@ export function Landing({
 
   return (
     <main className="landing" data-dialog-fallback-focus tabIndex={-1}>
+      <div className="window-drag-strip" aria-hidden="true" onMouseDown={handleWindowDragMouseDown} />
       {error && (
         <div className="error-banner" role="alert">
           <span>{error}</span>

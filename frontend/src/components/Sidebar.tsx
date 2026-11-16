@@ -1,5 +1,6 @@
 import { useRef, type ReactNode } from "react";
 import type { Project } from "../types";
+import { handleWindowDragMouseDown } from "../services/appWindow";
 import { displayPath } from "../utils/paths";
 import { PROJECT_VIEWS, type ProjectView } from "./projectViews";
 import { BackIcon, ChatIcon, NewChatIcon, PanelIcon, PenIcon, SearchIcon, SettingsIcon } from "./ui/Icons";
@@ -86,7 +87,7 @@ export function Sidebar({
   );
   return (
     <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
-      <div className="sidebar-logo-row">
+      <div className="sidebar-logo-row" onMouseDown={handleWindowDragMouseDown}>
         {collapsed ? (
           <button className="rail-brand" type="button" onClick={onNewProject} aria-label="New project">
             <QuillMark />
