@@ -73,3 +73,11 @@ export function FileIcon(props: IconProps) {
 export function SendIcon(props: IconProps) {
   return <Icon {...props}><path d="M8 14V2M3.5 6.5 8 2l4.5 4.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></Icon>;
 }
+
+export function PenIcon(props: IconProps) {
+  return <Icon {...props}><path d="M10.5 2.5 13.5 5.5 5.5 13.5H2.5v-3l8-8Z" stroke="currentColor" strokeLinejoin="round" /><path d="m9 4 3 3" stroke="currentColor" /></Icon>;
+}
+
+export function ChatIcon(props: IconProps) {
+  return <Icon {...props}><path d="M3 2.5h10A1.5 1.5 0 0 1 14.5 4v6a1.5 1.5 0 0 1-1.5 1.5H7.5L4 14v-2.5H3A1.5 1.5 0 0 1 1.5 10V4A1.5 1.5 0 0 1 3 2.5Z" stroke="currentColor" strokeLinejoin="round" /></Icon>;
+}

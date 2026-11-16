@@ -1,26 +1,89 @@
+import { useRef, type ReactNode } from "react";
 import type { Project } from "../types";
-import { BackIcon, NewChatIcon, PanelIcon, SettingsIcon } from "./ui/Icons";
+import { displayPath } from "../utils/paths";
+import { PROJECT_VIEWS, type ProjectView } from "./projectViews";
+import { BackIcon, ChatIcon, NewChatIcon, PanelIcon, PenIcon, SearchIcon, SettingsIcon } from "./ui/Icons";
 import { QuillMark } from "./ui/QuillMark";
+
+const VIEW_ICONS: Record<ProjectView, (size: number) => ReactNode> = {
+  work: (size) => <PenIcon size={size} />,
+  research: (size) => <SearchIcon size={size} />,
+  chat: (size) => <ChatIcon size={size} />,
+};
 
 interface SidebarProps {
   collapsed: boolean;
   project: Project;
+  activeView: ProjectView;
   settingsActive: boolean;
   onNewProject: () => void;
   onClearActiveProject: () => void;
   onOpenSettings: () => void;
+  onSelectView: (view: ProjectView) => void;
   onToggleCollapsed: () => void;
 }
 
 export function Sidebar({
   collapsed,
   project,
+  activeView,
   settingsActive,
   onNewProject,
   onClearActiveProject,
   onOpenSettings,
+  onSelectView,
   onToggleCollapsed,
 }: SidebarProps) {
+  const viewRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const iconSize = collapsed ? 18 : 15;
+
+  const viewNav = (
+    <div
+      className={`project-view-nav ${collapsed ? "rail" : ""}`}
+      role="tablist"
+      aria-label="Project views"
+      aria-orientation="vertical"
+    >
+      {PROJECT_VIEWS.map((view, index) => {
+        const isActive = activeView === view.id;
+        return (
+          <button
+            ref={(element) => { viewRefs.current[index] = element; }}
+            id={`project-${view.id}-tab`}
+            className={isActive ? "active" : ""}
+            type="button"
+            role="tab"
+            title={collapsed ? view.label : undefined}
+            aria-label={collapsed ? view.label : undefined}
+            tabIndex={isActive ? 0 : -1}
+            aria-controls={`project-${view.id}-panel`}
+            aria-selected={isActive}
+            key={view.id}
+            onClick={() => onSelectView(view.id)}
+            onKeyDown={(event) => {
+              if (!["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) {
+                return;
+              }
+              event.preventDefault();
+              const count = PROJECT_VIEWS.length;
+              const nextIndex = event.key === "Home"
+                ? 0
+                : event.key === "End"
+                  ? count - 1
+                  : event.key === "ArrowUp"
+                    ? (index - 1 + count) % count
+                    : (index + 1) % count;
+              onSelectView(PROJECT_VIEWS[nextIndex].id);
+              viewRefs.current[nextIndex]?.focus();
+            }}
+          >
+            {VIEW_ICONS[view.id](iconSize)}
+            {!collapsed && <span>{view.label}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
   return (
     <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
       <div className="sidebar-logo-row">
@@ -51,15 +114,18 @@ export function Sidebar({
 
       <div className="sidebar-region">
         {collapsed ? (
-          <button
-            className="sidebar-icon-button rail-search"
-            type="button"
-            aria-label="Back to recent projects"
-            title="Recent projects"
-            onClick={onClearActiveProject}
-          >
-            <BackIcon size={18} />
-          </button>
+          <>
+            <button
+              className="sidebar-icon-button rail-search"
+              type="button"
+              aria-label="Back to recent projects"
+              title="Recent projects"
+              onClick={onClearActiveProject}
+            >
+              <BackIcon size={18} />
+            </button>
+            {viewNav}
+          </>
         ) : (
           <div className="active-project-sidebar">
             <button className="active-project-back" type="button" onClick={onClearActiveProject}>
@@ -68,8 +134,9 @@ export function Sidebar({
             </button>
             <div className="active-project-heading">
               <h2 title={project.title}>{project.title}</h2>
-              {project.path && <p title={project.path}>{project.path}</p>}
+              {project.path && <p title={displayPath(project.path)}>{displayPath(project.path)}</p>}
             </div>
+            {viewNav}
           </div>
         )}
       </div>

@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { Project } from "../types";
 import { NewChatIcon, SearchIcon, SettingsIcon } from "./ui/Icons";
 import { AsciiQuill } from "./ui/AsciiQuill";
+import { displayPath } from "../utils/paths";
 
 interface LandingProps {
   projects: Project[];
@@ -85,11 +86,11 @@ export function Landing({
                 className="landing-project"
                 key={project.id}
                 type="button"
-                title={project.path ?? project.title}
+                title={project.path ? displayPath(project.path) : project.title}
                 onClick={() => onSelectProject(project.id)}
               >
                 <span className="landing-project-title">{project.title}</span>
-                {project.path && <span className="landing-project-path">{project.path}</span>}
+                {project.path && <span className="landing-project-path">{displayPath(project.path)}</span>}
                 <span className="landing-project-time">{projectTime(project)}</span>
               </button>
             ))

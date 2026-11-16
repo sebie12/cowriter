@@ -4,6 +4,7 @@ import { ProjectModal } from "./components/projects/ProjectModal";
 import { SettingsModal } from "./components/settings/SettingsModal";
 import { Sidebar } from "./components/Sidebar";
 import { Workspace } from "./components/Workspace";
+import type { ProjectView } from "./components/projectViews";
 import { useProviders } from "./hooks/useProviders";
 import { projectFilesystemService } from "./services/projectFilesystem";
 import type { CowriterApi } from "./services/backend/types";
@@ -83,6 +84,7 @@ export default function App({ api }: { api: CowriterApi }) {
   const [isProjectsLoading, setIsProjectsLoading] = useState(true);
   const [projectsError, setProjectsError] = useState<string | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [activeView, setActiveView] = useState<ProjectView>("work");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -513,6 +515,11 @@ export default function App({ api }: { api: CowriterApi }) {
     }
   }, [selectedProjectId]);
 
+  // Each project opens on the Work view.
+  useEffect(() => {
+    setActiveView("work");
+  }, [selectedProjectId]);
+
   const openNewProject = () => {
     setIsSettingsOpen(false);
     setIsProjectModalOpen(true);
@@ -546,6 +553,7 @@ export default function App({ api }: { api: CowriterApi }) {
       <Sidebar
         collapsed={sidebarCollapsed}
         project={selectedProject}
+        activeView={activeView}
         settingsActive={isSettingsOpen}
         onNewProject={openNewProject}
         onClearActiveProject={() => {
@@ -553,11 +561,13 @@ export default function App({ api }: { api: CowriterApi }) {
           setError(null);
         }}
         onOpenSettings={openSettings}
+        onSelectView={setActiveView}
         onToggleCollapsed={() => setSidebarCollapsed((collapsed) => !collapsed)}
       />
       <Workspace
         api={api}
         project={selectedProject}
+        activeView={activeView}
         isSending={isSending}
         isThinking={isSending && sendingProjectId === selectedProject?.id}
         error={error}
