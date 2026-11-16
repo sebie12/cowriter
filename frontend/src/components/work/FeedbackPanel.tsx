@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import type { ProofreadIssue, ProofreadIssueType, Reference } from "../../types";
+import type { ProofreadIssue, ProofreadIssueType, ProofreadTopic, Reference } from "../../types";
 
 export const ISSUE_LABELS: Record<ProofreadIssueType, { label: string; plural: string; mark: string }> = {
   spelling: { label: "Spelling", plural: "Spelling", mark: "Aa" },
@@ -20,6 +20,7 @@ interface FeedbackPanelProps {
   references: Reference[];
   hasReferences: boolean;
   essay: { file: string; truncated: boolean } | null;
+  topic: ProofreadTopic | null;
   hasProjectFolder: boolean;
   onFilterChange: (filter: ProofreadIssueType | null) => void;
   onHover: (id: string | null) => void;
@@ -42,6 +43,7 @@ export function FeedbackPanel({
   references,
   hasReferences,
   essay,
+  topic,
   hasProjectFolder,
   onFilterChange,
   onHover,
@@ -97,6 +99,12 @@ export function FeedbackPanel({
           Compared with <code>{essay.file}</code>
           {essay.truncated && " (only the first part fit; the rest was not checked)"}
         </p>
+      )}
+      {status === "reviewed" && essay && topic && !topic.onTopic && (
+        <div className="feedback-topic" role="status">
+          <strong>Off topic</strong>
+          <p>{topic.explanation || "This draft doesn't seem to be about your essay's topic."}</p>
+        </div>
       )}
       {status === "reviewed" && !essay && hasProjectFolder && (
         <p className="feedback-context">No LaTeX essay found in the project folder, so the draft was not compared with one.</p>

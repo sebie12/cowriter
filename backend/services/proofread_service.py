@@ -20,6 +20,10 @@ FINALIZE_INSTRUCTION = (
     "Now give your final review of the draft as a single JSON object in the required shape "
     '({"issues": [...]}), with no other text.'
 )
+FINALIZE_WITH_TOPIC_INSTRUCTION = (
+    "Now give your final review of the draft as a single JSON object in the required shape "
+    '({"topic": {...}, "issues": [...]}), with no other text.'
+)
 REVIEW_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
@@ -39,6 +43,22 @@ REVIEW_SCHEMA: dict[str, Any] = {
         },
     },
     "required": ["issues"],
+}
+# With an essay, the model also says whether the draft is about the essay's topic at all.
+TOPIC_REVIEW_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "topic": {
+            "type": "object",
+            "properties": {
+                "on_topic": {"type": "boolean"},
+                "explanation": {"type": "string"},
+            },
+            "required": ["on_topic", "explanation"],
+        },
+        **REVIEW_SCHEMA["properties"],
+    },
+    "required": ["topic", "issues"],
 }
 
 # Room for the model's answer on top of the prompt, and bounds for the requested context window.
@@ -73,9 +93,12 @@ class ProofreadService:
         references: list[dict[str, Any]] | None = None,
         project_path: str | None = None,
     ) -> dict[str, Any]:
-        """Return {"issues": [...], "essay_file": str | None, "essay_truncated": bool}."""
+        """Return {"issues": [...], "topic": {...} | None, "essay_file": str | None, "essay_truncated": bool}.
+
+        "topic" says whether the draft is about the essay's topic; it is None without an essay.
+        """
         if not text.strip():
-            return {"issues": [], "essay_file": None, "essay_truncated": False}
+            return {"issues": [], "topic": None, "essay_file": None, "essay_truncated": False}
         if len(text) > MAX_TEXT_LENGTH:
             raise LLMError(f"The draft must be {MAX_TEXT_LENGTH} characters or fewer to review.", 413)
 
@@ -106,19 +129,20 @@ class ProofreadService:
             message=message,
             system_prompt=system_prompt,
             # Constrain the answer to valid JSON; small local models otherwise break it now and then.
-            json_schema=REVIEW_SCHEMA,
+            json_schema=TOPIC_REVIEW_SCHEMA if essay else REVIEW_SCHEMA,
             # Local models default to small windows and silently drop the start of longer prompts.
             context_tokens=context_tokens_for(system_prompt, message),
         )
 
         if project_path is None:
-            issues = parse_review(llm.chat(request, config).message)
+            payload = parse_review_payload(llm.chat(request, config).message)
         else:
-            issues = self._run(self._review_with_tools(request, llm, config, project_path))
+            payload = self._run(self._review_with_tools(request, llm, config, project_path))
 
         valid_reference_ids = {reference["id"] for reference in references or []}
         return {
-            "issues": locate_issues(text, issues, valid_reference_ids),
+            "issues": locate_issues(text, payload["issues"], valid_reference_ids),
+            "topic": parse_topic(payload) if essay else None,
             "essay_file": essay.relative_path if essay else None,
             "essay_truncated": essay.truncated if essay else False,
         }
@@ -134,7 +158,7 @@ class ProofreadService:
             finally:
                 loop.close()
 
-    async def _review_with_tools(self, request, llm, config, project_path) -> list[dict[str, Any]]:
+    async def _review_with_tools(self, request, llm, config, project_path) -> dict[str, Any]:
         """Let the model read project files, then make sure the final answer is valid JSON.
 
         Structured output and tool calls can't be combined, so tool rounds run unconstrained.
@@ -145,7 +169,7 @@ class ProofreadService:
             async with self.chat_service.mcp_client_factory(project_path) as client:
                 tools = ChatService.tool_definitions(await client.list_tools())
                 if not tools:
-                    return parse_review(llm.chat(request, config).message)
+                    return parse_review_payload(llm.chat(request, config).message)
 
                 messages: list[dict[str, Any]] = [
                     {"role": "system", "content": request.system_prompt},
@@ -160,7 +184,7 @@ class ProofreadService:
                     turn = llm.complete_chat(request, config, messages, tools)
                     if not turn.tool_calls:
                         try:
-                            return parse_review(turn.content)
+                            return parse_review_payload(turn.content)
                         except LLMError:
                             messages.append({"role": "assistant", "content": turn.content})
                             break
@@ -180,13 +204,23 @@ class ProofreadService:
         except Exception as error:
             raise LLMError("Could not communicate with the project tools.", 502) from error
 
-        messages.append({"role": "user", "content": FINALIZE_INSTRUCTION})
+        finalize = (
+            FINALIZE_WITH_TOPIC_INSTRUCTION
+            if request.json_schema is TOPIC_REVIEW_SCHEMA
+            else FINALIZE_INSTRUCTION
+        )
+        messages.append({"role": "user", "content": finalize})
         final_turn = llm.complete_chat(request, config, messages, ())
-        return parse_review(final_turn.content)
+        return parse_review_payload(final_turn.content)
 
 
 def parse_review(content: str) -> list[dict[str, Any]]:
     """Extract the issues array from the model's (hopefully JSON) reply."""
+    return parse_review_payload(content)["issues"]
+
+
+def parse_review_payload(content: str) -> dict[str, Any]:
+    """Parse the model's (hopefully JSON) reply; the issues list is required, the rest is kept as is."""
     if not isinstance(content, str):
         raise LLMError(UNREADABLE_REVIEW, 502)
     start = content.find("{")
@@ -201,7 +235,21 @@ def parse_review(content: str) -> list[dict[str, Any]]:
     if not isinstance(issues, list):
         logger.warning("Unreadable proofreading reply: %r", content[:2000])
         raise LLMError(UNREADABLE_REVIEW, 502)
-    return [issue for issue in issues if isinstance(issue, dict)]
+    return {**payload, "issues": [issue for issue in issues if isinstance(issue, dict)]}
+
+
+def parse_topic(payload: dict[str, Any]) -> dict[str, Any] | None:
+    """The model's verdict on whether the draft is about the essay's topic, or None if it gave none.
+
+    A missing or malformed verdict doesn't fail the review; the issues are still useful.
+    """
+    topic = payload.get("topic")
+    if not isinstance(topic, dict) or not isinstance(topic.get("on_topic"), bool):
+        return None
+    return {
+        "on_topic": topic["on_topic"],
+        "explanation": _clean_text(topic.get("explanation"), 1000) or "",
+    }
 
 
 def _clean_text(value: Any, max_length: int) -> str | None:

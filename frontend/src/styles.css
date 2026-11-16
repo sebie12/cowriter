@@ -3071,6 +3071,28 @@ textarea:focus-visible {
   line-height: 1.45;
 }
 
+.feedback-topic {
+  margin: 0 16px 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--issue-claim);
+  border-radius: var(--ds-radius-md);
+  background: var(--issue-claim-bg);
+  color: var(--ds-text-2);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.feedback-topic strong {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--ds-text);
+  font-weight: 600;
+}
+
+.feedback-topic p {
+  margin: 0;
+}
+
 .feedback-context code {
   color: var(--ds-text-2);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;

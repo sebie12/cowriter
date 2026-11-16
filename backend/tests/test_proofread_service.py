@@ -10,9 +10,11 @@ from backend.database import Project, Reference, db
 from backend.llm.contracts import ChatResult, LLMError, ModelTurn, ToolCall
 from backend.services.proofread_service import (
     REVIEW_SCHEMA,
+    TOPIC_REVIEW_SCHEMA,
     ProofreadService,
     locate_issues,
     parse_review,
+    parse_topic,
 )
 
 
@@ -35,8 +37,11 @@ class FakeChatService:
         return self.provider, object()
 
 
-def review_reply(*issues):
-    return json.dumps({"issues": list(issues)})
+def review_reply(*issues, topic=None):
+    payload = {"issues": list(issues)}
+    if topic is not None:
+        payload["topic"] = topic
+    return json.dumps(payload)
 
 
 class ProofreadParsingTests(unittest.TestCase):
@@ -195,6 +200,43 @@ class ProofreadEssayTests(unittest.TestCase):
         # The essay comes first and the instructions last, right before the model answers.
         self.assertLess(user_message.index("Battery use rose by 12 percent."), user_message.index("<<<DRAFT"))
         self.assertIn("Do not report sentences that agree with the essay", user_message)
+        self.assertEqual(provider.calls[0]["schema"], TOPIC_REVIEW_SCHEMA)
+        # A reply without a verdict still returns its issues.
+        self.assertIsNone(review["topic"])
+
+    def test_off_topic_draft_is_reported(self):
+        with tempfile.TemporaryDirectory() as directory:
+            (Path(directory) / "main.tex").write_text(
+                "\\begin{document}\nCarbon taxes cut emissions.\n\\end{document}\n", encoding="utf-8"
+            )
+            provider = ToolLoopProvider([ModelTurn(content=review_reply(
+                topic={"on_topic": False, "explanation": "The essay is about carbon taxes; this is a recipe."}
+            ))])
+            service = ProofreadService(FakeChatService(provider, lambda path: FakeMCPClient()))
+            review = service.review(
+                connection_id=1, provider="ollama", model="m",
+                text="Whisk two eggs with flour.", project_path=directory,
+            )
+
+        self.assertEqual(
+            review["topic"],
+            {"on_topic": False, "explanation": "The essay is about carbon taxes; this is a recipe."},
+        )
+        self.assertIn("topic.on_topic", provider.calls[0]["messages"][-1]["content"])
+
+    def test_without_essay_there_is_no_topic_check(self):
+        provider = FakeProvider(review_reply(topic={"on_topic": False, "explanation": "x"}))
+        review = ProofreadService(FakeChatService(provider)).review(
+            connection_id=1, provider="openai", model="m", text="Anything."
+        )
+        self.assertIsNone(review["topic"])
+        self.assertEqual(provider.requests[0].json_schema, REVIEW_SCHEMA)
+        self.assertNotIn('"topic"', provider.requests[0].system_prompt)
+
+    def test_malformed_topic_is_ignored(self):
+        self.assertIsNone(parse_topic({"topic": {"on_topic": "no"}}))
+        self.assertIsNone(parse_topic({}))
+        self.assertEqual(parse_topic({"topic": {"on_topic": True}}), {"on_topic": True, "explanation": ""})
 
 
 class ProofreadServiceTests(unittest.TestCase):
@@ -218,7 +260,7 @@ class ProofreadServiceTests(unittest.TestCase):
             ProofreadService(FakeChatService(provider)).review(
                 connection_id=1, provider="openai", model="m", text="   "
             ),
-            {"issues": [], "essay_file": None, "essay_truncated": False},
+            {"issues": [], "topic": None, "essay_file": None, "essay_truncated": False},
         )
         self.assertEqual(provider.requests, [])
 

@@ -104,7 +104,8 @@ class SystemPrompts:
         if essay:
             sections.append(
                 "The user message also contains the writer's essay. The draft is new writing for that "
-                "essay; check the draft against it, but never review or quote the essay itself."
+                "essay; check the draft against it, but never review or quote the essay itself. "
+                "Also judge whether the draft is about the essay's topic at all."
             )
         if can_read_project_files:
             sections.append(
@@ -113,9 +114,14 @@ class SystemPrompts:
                 "read_file returns long files in parts; when truncated is true, call it again with "
                 "offset set to next_offset if you need the rest."
             )
+        topic_field = (
+            '"topic": {"on_topic": true|false, "explanation": "<one or two sentences>"}, '
+            if essay
+            else ""
+        )
         sections.append(
             "Respond with JSON only, no prose and no Markdown, in exactly this shape:\n"
-            '{"issues": [{"type": "spelling|grammar|claim|style", '
+            "{" + topic_field + '"issues": [{"type": "spelling|grammar|claim|style", '
             '"quote": "<exact text copied from the draft>", '
             '"explanation": "<one or two sentences>", '
             '"suggestion": "<replacement text for the quote, or null>", '
@@ -124,7 +130,11 @@ class SystemPrompts:
             "possible (only the misspelled word for spelling, a clause or sentence for claims). "
             "The suggestion replaces the whole quote, so it must be the complete corrected text "
             '(quote "knwon" -> suggestion "known"; quote "the datas is" -> suggestion "the data are"). '
-            'If there are no problems, respond with {"issues": []}.'
+            + (
+                'If there are no problems, set "issues" to [].'
+                if essay
+                else 'If there are no problems, respond with {"issues": []}.'
+            )
         )
         return "\n\n".join(sections)
 
@@ -144,7 +154,12 @@ class SystemPrompts:
             "or conclusion), report it as a claim issue: quote the sentence from the draft, and in the "
             "explanation quote what the essay says. Do not report sentences that agree with the essay. "
             "Also report spelling, grammar and style problems in the draft. Every quote must come from "
-            "the draft, never from the essay."
+            "the draft, never from the essay.\n\n"
+            "Before the issues, decide whether the draft as a whole is about the essay's topic. Set "
+            "topic.on_topic to false only when the draft has nothing to do with the essay's subject "
+            "(for example, a recipe in an essay about climate policy); a draft that covers a new angle, "
+            "example or section of the same subject is on topic. In topic.explanation, name the essay's "
+            "topic and say what the draft is about instead, or why it fits."
         )
 
     @staticmethod

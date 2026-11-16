@@ -435,6 +435,12 @@ export const cowriterApi: CowriterApi = {
     }
     return {
       issues: response.issues.map(normalizeProofreadIssue),
+      topic: isRecord(response.topic) && typeof response.topic.on_topic === "boolean"
+        ? {
+          onTopic: response.topic.on_topic,
+          explanation: typeof response.topic.explanation === "string" ? response.topic.explanation : "",
+        }
+        : null,
       essayFile: optionalString(response.essay_file),
       essayTruncated: response.essay_truncated === true,
     };
