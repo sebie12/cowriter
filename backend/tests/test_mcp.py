@@ -5,6 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import pypandoc
+
 from backend.mcp_client import MCPClient
 
 
@@ -50,6 +52,13 @@ class MCPIntegrationTests(unittest.TestCase):
                 Path(project_directory, "broken.tex").write_text(
                     "\\begin{itemize} unclosed {", encoding="utf-8"
                 )
+                pypandoc.convert_text(
+                    "# Intro\n\nThis is *important* prose.",
+                    "docx",
+                    format="markdown",
+                    outputfile=str(Path(project_directory, "essay.docx")),
+                )
+                Path(project_directory, "corrupt.docx").write_bytes(b"not a zip archive")
                 long_text = " ".join(f"word{index}" for index in range(200))
                 Path(project_directory, "notes.txt").write_text(long_text, encoding="utf-8")
                 async with MCPClient(
@@ -60,6 +69,8 @@ class MCPIntegrationTests(unittest.TestCase):
                 ) as client:
                     latex = await client.call_tool("read_file", {"path": "paper.tex"})
                     broken = await client.call_tool("read_file", {"path": "broken.tex"})
+                    word = await client.call_tool("read_file", {"path": "essay.docx"})
+                    corrupt = await client.call_tool("read_file", {"path": "corrupt.docx"})
                     first = await client.call_tool(
                         "read_file", {"path": "notes.txt", "max_chars": 100}
                     )
@@ -80,6 +91,11 @@ class MCPIntegrationTests(unittest.TestCase):
 
                 self.assertFalse(data(broken)["cleaned"])
                 self.assertIn("unclosed", data(broken)["content"])
+
+                self.assertTrue(data(word)["cleaned"])
+                self.assertIn("Intro", data(word)["content"])
+                self.assertIn("This is important prose.", data(word)["content"])
+                self.assertTrue(corrupt.is_error)
 
                 self.assertTrue(data(first)["truncated"])
                 self.assertLessEqual(len(data(first)["content"]), 100)
