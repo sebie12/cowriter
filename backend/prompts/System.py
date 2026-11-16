@@ -67,14 +67,8 @@ class SystemPrompts:
             "Be kind and respectful in your responses.",
         ])
 
-        system_prompt = "\n\n".join(instructions)
+        return "\n\n".join(instructions)
 
-        return (
-            "<|im_start|>system\n"
-            f"{system_prompt}"
-            "<|im_end|>\n"
-        )
-        
     @staticmethod
     def proofread(
         description: str | None = None,

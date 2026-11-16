@@ -13,7 +13,6 @@ from backend.auth.connections import normalize_identifier
 from backend.auth.credentials import CredentialStore
 from backend.llm.contracts import (
     ChatRequest,
-    format_chat_message,
     ChatResult,
     LLMError,
     LLMProvider,
@@ -287,14 +286,11 @@ class ChatService:
                 role = item.get("role")
                 content = item.get("content") or ""
                 if role == "user":
-                    turns.append([{"role": "user", "content": format_chat_message("user", content)}])
+                    turns.append([{"role": "user", "content": content}])
                 elif role == "assistant" and content.strip():
                     if not turns:
                         turns.append([])
-                    turns[-1].append({
-                        "role": "assistant",
-                        "content": format_chat_message("assistant", content),
-                    })
+                    turns[-1].append({"role": "assistant", "content": content})
                 continue
             if item.get("kind") != "tool_call":
                 continue

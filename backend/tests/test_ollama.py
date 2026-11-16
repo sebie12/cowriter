@@ -147,11 +147,11 @@ class OllamaProviderTests(unittest.TestCase):
                 {"role": "system", "content": "Be concise."},
                 {
                     "role": "assistant",
-                    "content": "<|im_start|>assistant\nPrevious answer<|im_end|>",
+                    "content": "Previous answer",
                 },
                 {
                     "role": "user",
-                    "content": "<|im_start|>user\nHello<|im_end|>",
+                    "content": "Hello",
                 },
             ],
             "stream": True,

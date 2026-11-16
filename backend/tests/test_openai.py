@@ -108,11 +108,11 @@ class OpenAIProviderTests(unittest.TestCase):
                 {"role": "system", "content": "Be concise."},
                 {
                     "role": "assistant",
-                    "content": "<|im_start|>assistant\nEarlier response<|im_end|>",
+                    "content": "Earlier response",
                 },
                 {
                     "role": "user",
-                    "content": "<|im_start|>user\nLatest question<|im_end|>",
+                    "content": "Latest question",
                 },
             ],
             "stream": True,
