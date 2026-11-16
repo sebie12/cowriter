@@ -43,8 +43,21 @@ def latex_to_text(source: str) -> tuple[str, bool]:
         return source, False
 
 
+def docx_to_text(file_path: Path) -> str:
+    """Convert a Word document to plain prose."""
+    try:
+        return pypandoc.convert_file(
+            str(file_path), "plain", format="docx", extra_args=["--wrap=none"]
+        )
+    except (RuntimeError, OSError) as error:
+        # Unlike LaTeX, the raw bytes of a .docx are useless to the model.
+        raise ToolError("The Word document could not be read.") from error
+
+
 def _readable_text(file_path: Path) -> tuple[str, bool]:
-    """Return the file's text, with LaTeX markup converted to plain prose."""
+    """Return the file's text, with LaTeX and Word documents converted to plain prose."""
+    if file_path.suffix.lower() == ".docx":
+        return docx_to_text(file_path), True
     source = file_path.read_text(encoding="utf-8")
     if file_path.suffix.lower() != ".tex":
         return source, True
@@ -69,7 +82,7 @@ def register_file_tools(mcp):
     async def read_file(path: str, offset: int = 0, max_chars: int | None = None) -> dict:
         """Read a text file using a path relative to the current project.
 
-        LaTeX files come back as plain prose. Long files come back in parts: when
+        LaTeX and Word (.docx) files come back as plain prose. Long files come back in parts: when
         `truncated` is true, call again with `offset` set to `next_offset`.
         """
         _, file_path = _project_path(path)

@@ -40,6 +40,9 @@ class SystemPrompts:
             "Don't write in Markdown notation; write text directly.",
             "You are a helpful and inquisitive assistant.",
             "Answer questions and provide information concisely and to the best of your ability.",
+            "When the user mentions 'this project' or 'this essay', they mean the essay in the project folder. "
+            "Use list_files to see the project's files, then read_file on the one most likely to be the essay "
+            "(usually a .docx file, main.tex, or another .tex file). If no file clearly looks like the essay, ask the user which file it is.",
         ]
 
         if title:
